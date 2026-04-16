@@ -56,7 +56,7 @@
     }
     .control-btn:hover { background: rgba(255,255,255,0.2); }
 
-    /* For textarea inputs since ECElements does not natively provide a textarea */
+    /* For textarea inputs since ECElements does not natively provide a textarea component */
     .prop-textarea {
       width: 100%; padding: 8px; border: 1px solid #ced4da; border-radius: 4px;
       font-size: 13px; box-sizing: border-box; background: #fff; resize: vertical;
@@ -91,15 +91,15 @@
       // Global App State
       window.currentAppTheme = 'Blue';
       window.currentAppDarkMode = false;
-      window.globalCanvasClasses = '';
+      window.globalCanvasClasses = 'padding-40px'; // Set default padding for aesthetics
 
       // Set builder export button using ECElements
-      const exportBtn = new ECButton('Export Website', { variant: 'filled' });
+      const exportBtn = new ECButton('Export', { variant: 'filled' });
       exportBtn.element.className += ' width-100% padding-10px';
       exportBtn.onClick(exportToJS);
       document.getElementById('sidebar-footer').appendChild(exportBtn.element);
 
-      // Helper to rebuild components that don't have extensive setter APIs
+      // Helper to rebuild components
       function rebuildComponent(wrapper, constructFn) {
           const data = wrapper.ecObj._builder_data;
           const newObj = constructFn(data);
@@ -123,7 +123,7 @@
           if(window.ECStyleSheet) window.ECStyleSheet.scan();
       }
 
-      // Wrapper for Layout Containers supporting dynamic columns
+      // Wrapper for Layout Containers
       class LayoutContainer {
         constructor(type) {
           this.element = document.createElement('div');
@@ -307,7 +307,7 @@
         }
       };
 
-      // Property editor configuration bindings
+      // Property editor bindings
       const propsConfig = {
         'Layout: Blank Container': [{ label: 'Columns', key: 'columns', type: 'number', update: (o, v) => o.setColumns(v) }],
         'Layout: Card Container': [{ label: 'Columns', key: 'columns', type: 'number', update: (o, v) => o.setColumns(v) }],
@@ -497,7 +497,6 @@
         wrapper.ecObj = ecObj;
         if (!ecObj._builder_data) ecObj._builder_data = {};
         
-        // Setup Up/Down/Delete Controls
         const controls = document.createElement('div');
         controls.className = 'item-controls';
         
@@ -534,11 +533,9 @@
         const contentEl = ecObj.element || ecObj;
         wrapper.appendChild(contentEl);
 
-        // Apply Global Themes
         if(ecObj.setTheme) ecObj.setTheme(window.ECTheme[window.currentAppTheme]);
         if(window.currentAppDarkMode && ecObj.enableDarkMode) ecObj.enableDarkMode();
 
-        // Click to Focus / Edit Properties
         wrapper.onclick = (e) => {
           e.stopPropagation();
           document.querySelectorAll('.canvas-item').forEach(el => el.classList.remove('selected'));
@@ -575,12 +572,10 @@
           const ecObj = componentFactory[type]();
           const wrapped = wrapComponent(type, ecObj);
           target.appendChild(wrapped);
-
           if (window.ECStyleSheet) window.ECStyleSheet.scan();
         }
       });
 
-      // Deselection trigger
       document.addEventListener('click', e => {
         if(!e.target.closest('.canvas-item') && !e.target.closest('#left-sidebar') && !e.target.closest('#right-sidebar')) {
           document.querySelectorAll('.canvas-item').forEach(el => el.classList.remove('selected'));
@@ -588,10 +583,9 @@
         }
       });
 
-      // Update Global Themes Across App
       function applyGlobalSettings() {
         const canvas = document.getElementById('canvas');
-        canvas.className = 'flex-1 overflowY-auto padding-40px position-relative transition-background_0.3s,_color_0.3s drop-zone ' + window.globalCanvasClasses;
+        canvas.className = 'flex-1 overflowY-auto position-relative transition-background_0.3s,_color_0.3s drop-zone ' + window.globalCanvasClasses;
         if(window.ECStyleSheet) window.ECStyleSheet.scan();
 
         if(window.currentAppDarkMode) {
@@ -610,7 +604,6 @@
         });
       }
 
-      // Show Global App Properties using ECElements
       function showGlobalProperties() {
         const panel = document.getElementById('properties-panel');
         panel.innerHTML = `<h4 class="marginTop-0 color-var(--ec-text,_#212529) borderBottom-1px_solid_var(--ec-border,_#dee2e6) paddingBottom-8px">Global Settings</h4>`;
@@ -627,7 +620,8 @@
         darkToggle.onChange(val => { window.currentAppDarkMode = val; applyGlobalSettings(); });
         panel.appendChild(darkToggle.element);
 
-        const classesBox = new ECTextbox({ label: 'Page Custom Classes', placeholder: 'e.g. padding-40px', value: window.globalCanvasClasses });
+        const classesBox = new ECTextbox({ label: 'Page Custom Classes', placeholder: 'e.g. padding-40px' });
+        classesBox.setValue(window.globalCanvasClasses);
         classesBox.onInput(val => { window.globalCanvasClasses = val; applyGlobalSettings(); });
         panel.appendChild(classesBox.element);
       }
@@ -642,7 +636,6 @@
         return '';
       }
 
-      // Show Properties for Selected Item using ECElements
       function showProperties(wrapper) {
         const panel = document.getElementById('properties-panel');
         const type = wrapper.dataset.type;
@@ -655,7 +648,6 @@
         let configs = [];
         if (propsConfig[type]) configs = configs.concat(propsConfig[type]);
         
-        // Add Generic Custom Classes Prop
         configs.push({
           label: 'Custom Classes', key: 'className', type: 'text',
           update: (o, v) => {
@@ -683,7 +675,6 @@
                 const itemBox = document.createElement('div');
                 itemBox.className = 'background-var(--ec-surface,_#f8f9fa) border-1px_solid_var(--ec-border,_#dee2e6) padding-10px borderRadius-6px display-flex flexDirection-column gap-8px position-relative';
 
-                // Fields for this list item
                 cfg.fields.forEach(field => {
                   let fInput;
                   if (field.type === 'checkbox') {
@@ -715,7 +706,6 @@
                   itemBox.appendChild(fInput.element);
                 });
 
-                // Remove button
                 const delBtn = new ECButton('Remove', { variant: 'outline' }).setTheme(ECTheme.Red);
                 delBtn.element.className += ' padding-4px_8px fontSize-11px alignSelf-flex-end';
                 delBtn.onClick(() => {
@@ -725,11 +715,9 @@
                   renderList();
                 });
                 itemBox.appendChild(delBtn.element);
-
                 listContainer.appendChild(itemBox);
               });
 
-              // Add button
               const addBtn = new ECButton('+ Add Item', { variant: 'outline' });
               addBtn.element.className += ' width-100% borderStyle-dashed background-var(--ec-bg,_#fff)';
               addBtn.onClick(() => {
@@ -782,48 +770,51 @@
 
       // Generate JS Component Code Block
       function generateComponentJS(type, data, v) {
-        let code = `  // ${type}\n  `;
-        const safe = val => JSON.stringify(val || '');
+        let code = `    // ${type}\n    `;
+        const safeStr = val => JSON.stringify(val || '');
         const nSafe = val => Number(val) || 0;
         
         switch(type) {
-          case 'ECSidebar': code += `var ${v} = new ECSidebar(${safe(data.title)}).setWidth(${safe(data.width)});`; break;
-          case 'ECTopbar': code += `var ${v} = new ECTopbar(${safe(data.title)});`; break;
-          case 'ECBanner': code += `var ${v} = new ECBanner(${safe(data.text)}, {loop: ${!!data.loop}, dismissible: ${!!data.dismissible}});`; break;
+          case 'ECSidebar': code += `var ${v} = new ECSidebar(${safeStr(data.title)}).setWidth(${safeStr(data.width)});`; break;
+          case 'ECTopbar': code += `var ${v} = new ECTopbar(${safeStr(data.title)});`; break;
+          case 'ECBanner': code += `var ${v} = new ECBanner(${safeStr(data.text)}, {loop: ${!!data.loop}, dismissible: ${!!data.dismissible}});`; break;
           case 'ECStepper': code += `var ${v} = new ECStepper(${JSON.stringify((data.steps||[]).map(s=>s.label))}, ${nSafe(data.currentStep)});`; break;
           case 'ECCarousel': 
               code += `var ${v} = new ECCarousel();\n`;
-              (data.items||[]).forEach(i => { code += `  ${v}.addItem(${JSON.stringify(i.html)});\n`; });
+              (data.items||[]).forEach(i => { code += `    ${v}.addItem(${safeStr(i.html)});\n`; });
               break;
           case 'ECHero': code += `var ${v} = new ECHero(${JSON.stringify(data)});`; break;
           case 'ECMediaCard': code += `var ${v} = new ECMediaCard(${JSON.stringify(data)});`; break;
           case 'ECAvatar': code += `var ${v} = new ECAvatar(${JSON.stringify(data)});`; break;
-          case 'ECBreadcrumbs': code += `var ${v} = new ECBreadcrumbs(${JSON.stringify(data.items)}, ${safe(data.separator)});`; break;
-          case 'ECProgressBar': code += `var ${v} = new ECProgressBar(${JSON.stringify(data)});`; break;
-          case 'ECCountdown': code += `var ${v} = new ECCountdown(${safe(data.targetDate)});`; break;
-          case 'ECBadge': code += `var ${v} = new ECBadge(${safe(data.label)}, ${safe(data.type)});`; break;
-          case 'ECSpinner': code += `var ${v} = new ECSpinner({ size: ${safe(data.size)} });`; break;
+          case 'ECBreadcrumbs': code += `var ${v} = new ECBreadcrumbs(${JSON.stringify(data.items)}, ${safeStr(data.separator)});`; break;
+          case 'ECProgressBar': 
+              code += `var ${v} = new ECProgressBar(${JSON.stringify(data)});\n`; 
+              if (data.height) code += `    ${v}.setHeight(${nSafe(data.height)});\n`;
+              break;
+          case 'ECCountdown': code += `var ${v} = new ECCountdown(${safeStr(data.targetDate)});`; break;
+          case 'ECBadge': code += `var ${v} = new ECBadge(${safeStr(data.label)}, ${safeStr(data.type)});`; break;
+          case 'ECSpinner': code += `var ${v} = new ECSpinner({ size: ${safeStr(data.size)} });`; break;
           case 'ECAccordion': 
               code += `var ${v} = new ECAccordion({allowMultiple: ${!!data.allowMultiple}});\n`;
-              (data.items||[]).forEach(i => { code += `  ${v}.addItem(${safe(i.title)}, ${safe(i.content)}, ${!!i.open});\n`; });
+              (data.items||[]).forEach(i => { code += `    ${v}.addItem(${safeStr(i.title)}, ${safeStr(i.content)}, ${!!i.open});\n`; });
               break;
           case 'ECList': 
-              code += `var ${v} = new ECList({variant: ${safe(data.variant)}, direction: ${safe(data.direction)}});\n`;
-              (data.items||[]).forEach(i => { code += `  ${v}.addItem(${safe(i.text)});\n`; });
+              code += `var ${v} = new ECList({variant: ${safeStr(data.variant)}, direction: ${safeStr(data.direction)}});\n`;
+              (data.items||[]).forEach(i => { code += `    ${v}.addItem(${safeStr(i.text)});\n`; });
               break;
           case 'ECDivider': code += `var ${v} = new ECDivider(${JSON.stringify(data)});`; break;
           case 'ECButton': 
-              code += `var ${v} = new ECButton(${safe(data.label)}, {variant: ${safe(data.variant)}});\n`;
-              if (data.disabled) code += `  ${v}.disable();\n`;
+              code += `var ${v} = new ECButton(${safeStr(data.label)}, {variant: ${safeStr(data.variant)}});\n`;
+              if (data.disabled) code += `    ${v}.disable();\n`;
               break;
           case 'ECRadio': code += `var ${v} = new ECRadio("rad_" + Math.random().toString(36).substr(2, 9), ${JSON.stringify(data.options)});`; break;
-          case 'ECToggle': code += `var ${v} = new ECToggle(${safe(data.label)}, ${!!data.checked});`; break;
-          case 'ECCheckbox': code += `var ${v} = new ECCheckbox(${safe(data.label)}, ${!!data.checked});`; break;
+          case 'ECToggle': code += `var ${v} = new ECToggle(${safeStr(data.label)}, ${!!data.checked});`; break;
+          case 'ECCheckbox': code += `var ${v} = new ECCheckbox(${safeStr(data.label)}, ${!!data.checked});`; break;
           case 'ECTextbox': code += `var ${v} = new ECTextbox(${JSON.stringify(data)});`; break;
-          case 'ECDropdown': code += `var ${v} = new ECDropdown({label: ${safe(data.label)}, items: ${JSON.stringify(data.options)}});`; break;
+          case 'ECDropdown': code += `var ${v} = new ECDropdown({label: ${safeStr(data.label)}, items: ${JSON.stringify(data.options)}});`; break;
           case 'ECSlider': 
               let tks = data.ticks ? data.ticks.split(',') : null;
-              code += `var ${v} = new ECSlider({label: ${safe(data.label)}, min: ${nSafe(data.min)}, max: ${nSafe(data.max)}, step: ${nSafe(data.step)}, value: ${nSafe(data.value)}, suffix: ${safe(data.suffix)}, ticks: ${JSON.stringify(tks)}});`;
+              code += `var ${v} = new ECSlider({label: ${safeStr(data.label)}, min: ${nSafe(data.min)}, max: ${nSafe(data.max)}, step: ${nSafe(data.step)}, value: ${nSafe(data.value)}, suffix: ${safeStr(data.suffix)}, ticks: ${JSON.stringify(tks)}});`;
               break;
           case 'ECDatePicker': code += `var ${v} = new ECDatePicker(${JSON.stringify(data)});`; break;
           case 'ECFileUpload': code += `var ${v} = new ECFileUpload(${JSON.stringify(data)});`; break;
@@ -832,11 +823,11 @@
         }
         
         if(data.className) {
-            code += `\n  if(${v} && ${v}.element) ${v}.element.className += " " + ${safe(data.className)};`;
+            code += `\n    if(${v} && ${v}.element) ${v}.element.className += " " + ${safeStr(data.className)};`;
         }
-        code += `\n  if(${v} && ${v}.setTheme) ${v}.setTheme(window.ECTheme['${window.currentAppTheme}']);`;
+        code += `\n    if(${v} && ${v}.setTheme) ${v}.setTheme(window.ECTheme['${window.currentAppTheme}']);`;
         if (window.currentAppDarkMode) {
-            code += `\n  if(${v} && ${v}.enableDarkMode) ${v}.enableDarkMode();`;
+            code += `\n    if(${v} && ${v}.enableDarkMode) ${v}.enableDarkMode();`;
         }
         return code + '\n';
       }
@@ -857,43 +848,43 @@
       // Export Functionality producing programmatic JavaScript
       function exportToJS() {
         let jsCode = `    // ECWebsite Generated JS\n`;
-        jsCode += `    var root = document.body;\n`;
-        
+        jsCode += `    var root = document.body;\n\n`;
         let varId = 0;
-        let containerIndex = 0;
         
-        Array.from(document.getElementById('canvas').children).forEach(containerWrapper => {
-            if(!containerWrapper.classList.contains('container-layout')) return;
-            containerIndex++;
-            let cVar = 'container_' + containerIndex;
-            jsCode += `\n    // Container ${containerIndex}\n`;
-            jsCode += `    var ${cVar} = document.createElement('div');\n`;
-            let cClasses = 'container-layout display-flex gap-16px width-100% boxSizing-border-box flexWrap-wrap marginBottom-16px minHeight-60px';
-            if (containerWrapper.classList.contains('eccard')) cClasses += ' eccard padding-24px';
-            jsCode += `    ${cVar}.className = '${cClasses}';\n`;
-            jsCode += `    root.appendChild(${cVar});\n\n`;
+        function generateZoneJS(zoneNode, parentVar) {
+          const items = Array.from(zoneNode.children).filter(c => c.classList.contains('canvas-item'));
+          
+          items.forEach(item => {
+            const type = item.dataset.type;
+            const data = item.ecObj._builder_data || {};
+            const v = 'comp_' + (++varId);
             
-            let colIndex = 0;
-            Array.from(containerWrapper.children).forEach(col => {
-                if(!col.classList.contains('col-layout')) return;
-                colIndex++;
-                let colVar = cVar + '_col_' + colIndex;
-                jsCode += `    var ${colVar} = document.createElement('div');\n`;
-                jsCode += `    ${colVar}.className = 'col-layout flex-1 display-flex flexDirection-column gap-12px boxSizing-border-box';\n`;
-                jsCode += `    ${colVar}.style.minWidth = '200px';\n`;
-                jsCode += `    ${cVar}.appendChild(${colVar});\n\n`;
-                
-                Array.from(col.children).forEach(item => {
-                    if(!item.classList.contains('canvas-item')) return;
-                    let type = item.dataset.type;
-                    let data = item.ecObj._builder_data || {};
-                    let v = 'comp_' + (++varId);
-                    
-                    jsCode += generateComponentJS(type, data, v);
-                    jsCode += `    ${colVar}.appendChild(${v}.element || ${v});\n\n`;
-                });
-            });
-        });
+            if (type.startsWith('Layout:')) {
+               jsCode += `    // ${type}\n`;
+               jsCode += `    var ${v} = document.createElement('div');\n`;
+               let cClasses = 'display-flex gap-16px width-100% boxSizing-border-box flexWrap-wrap';
+               if (type === 'Layout: Card Container') cClasses += ' eccard padding-24px';
+               if (data.className) cClasses += ' ' + data.className;
+               jsCode += `    ${v}.className = '${cClasses}';\n`;
+               jsCode += `    ${parentVar}.appendChild(${v});\n\n`;
+               
+               const cols = Array.from(item.ecObj.element.children).filter(c => c.classList.contains('col-layout'));
+               cols.forEach((col, idx) => {
+                   let colVar = v + '_col_' + (idx + 1);
+                   jsCode += `    var ${colVar} = document.createElement('div');\n`;
+                   jsCode += `    ${colVar}.className = 'flex-1 display-flex flexDirection-column gap-12px boxSizing-border-box minWidth-200px';\n`;
+                   jsCode += `    ${v}.appendChild(${colVar});\n\n`;
+                   
+                   generateZoneJS(col, colVar);
+               });
+            } else {
+               jsCode += generateComponentJS(type, data, v);
+               jsCode += `    ${parentVar}.appendChild(${v}.element || ${v});\n\n`;
+            }
+          });
+        }
+
+        generateZoneJS(document.getElementById('canvas'), 'root');
 
         const bg = window.currentAppDarkMode ? '#1a1a2e' : '#f1f3f5';
         const htmlContent = `<!DOCTYPE html>
@@ -901,7 +892,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Exported ECWebsite</title>
+  <title>ECWebsite</title>
   <script>
     ${ecStyleSheetCode}
   <\/script>
@@ -911,7 +902,7 @@
   <style>
     /* Base Body Styling */
     body {
-      margin: 0; padding: 40px; min-height: 100vh; box-sizing: border-box;
+      margin: 0; min-height: 100vh; box-sizing: border-box;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
       background: ${bg};
     }
@@ -932,7 +923,7 @@ ${jsCode}
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = 'ecwebsite_programmatic.html';
+        a.download = 'ecwebsite.html';
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
