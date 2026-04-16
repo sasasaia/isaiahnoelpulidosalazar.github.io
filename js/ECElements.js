@@ -201,6 +201,8 @@
 
     if (options.variant === "outline") {
       this.element.classList.add("background-transparent", "color-var(--ec-accent,_#1a73e8)", "border-1.5px_solid_var(--ec-accent,_#1a73e8)");
+    } else if (options.variant === "white") {
+      this.element.classList.add("background-#ffffff", "color-var(--ec-accent,_#1a73e8)", "border-1.5px_solid_var(--ec-accent,_#1a73e8)");
     } else {
       this.element.classList.add("background-var(--ec-accent,_#1a73e8)", "color-#ffffff");
     }
@@ -1781,15 +1783,17 @@
       this._header = document.createElement("div");
       this._header.className = "display-flex alignItems-center gap-10px padding-14px_16px_0";
 
-      var avatar = document.createElement("div");
-      avatar.className = "width-38px height-38px borderRadius-50% background-var(--ec-surface,_#f8f9fa) border-1px_solid_var(--ec-border,_#dee2e6) display-flex alignItems-center justifyContent-center fontSize-14px fontWeight-600 color-var(--ec-accent,_#1a73e8) flexShrink-0 overflow-hidden";
-      if (options.avatarSrc) {
-        var img = document.createElement("img");
-        img.className = "width-100% height-100% objectFit-cover";
-        img.src = options.avatarSrc; img.alt = options.author;
-        avatar.appendChild(img);
-      } else {
-        avatar.textContent = (options.author || "?")[0].toUpperCase();
+      if (!options.noAvatar || options.noAvatar == "false") {
+        var avatar = document.createElement("div");
+        avatar.className = "width-38px height-38px borderRadius-50% background-var(--ec-surface,_#f8f9fa) border-1px_solid_var(--ec-border,_#dee2e6) display-flex alignItems-center justifyContent-center fontSize-14px fontWeight-600 color-var(--ec-accent,_#1a73e8) flexShrink-0 overflow-hidden";
+        if (options.avatarSrc) {
+          var img = document.createElement("img");
+          img.className = "width-100% height-100% objectFit-cover";
+          img.src = options.avatarSrc; img.alt = options.author;
+          avatar.appendChild(img);
+        } else {
+          avatar.textContent = (options.author || "?")[0].toUpperCase();
+        }
       }
 
       var meta = document.createElement("div");
@@ -1807,7 +1811,9 @@
         meta.appendChild(tsEl);
       }
 
-      this._header.appendChild(avatar);
+      if (!options.noAvatar || options.noAvatar == "false") {
+        this._header.appendChild(avatar);
+      }
       this._header.appendChild(meta);
       this.element.appendChild(this._header);
     }
@@ -1816,7 +1822,7 @@
       var imgWrap = document.createElement("div");
       imgWrap.className = "overflow-hidden";
       var cardImg = document.createElement("img");
-      cardImg.className = "width-100% objectFit-cover marginTop-14px display-block";
+      cardImg.className = "width-100% objectFit-contain marginTop-14px display-block borderTop-1px_solid_var(--ec-border,_#dee2e6) borderBottom-1px_solid_var(--ec-border,_#dee2e6)";
       cardImg.src = options.imageSrc; cardImg.alt = options.imageAlt || "";
       if (options.imageHeight) cardImg.style.height = options.imageHeight;
       imgWrap.appendChild(cardImg);
@@ -1837,7 +1843,9 @@
       var self = this;
       options.actions.forEach(function (act) { self.addAction(act.label, act.onClick, act.icon); });
     }
-    this.element.appendChild(this._footer);
+    if (options.footer) {
+      this.element.appendChild(this._footer);
+    }
 
     applyBaseMixin(this);
   }
@@ -2178,7 +2186,7 @@
     this.element.className = BASE_CLS + " display-none position-fixed inset-0 background-rgba(0,0,0,0.9) zIndex-3000 alignItems-center justifyContent-center opacity-0 transition-opacity_0.25s_ease";
 
     this._img = document.createElement("img");
-    this._img.className = "maxWidth-90vw maxHeight-90vh objectFit-contain transform-scale(0.9) transition-transform_0.25s_ease";
+    this._img.className = "maxWidth-100vw maxHeight-100vh objectFit-contain transform-scale(0.9) transition-transform_0.25s_ease";
     
     this._caption = document.createElement("div");
     this._caption.className = "position-absolute bottom-24px left-50% transform-translateX(-50%) color-#fff fontSize-14px fontWeight-500 textShadow-0_1px_4px_rgba(0,0,0,0.5)";

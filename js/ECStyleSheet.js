@@ -1,20 +1,29 @@
 /**
  * ECStyleSheet
- * Dynamic CSS rule generator based on element class names.
- * Supports responsive prefixes (mobile:), pseudo-class prefixes (hover:, focus:),
- * and chainable modifiers (mobile:hover:).
+ * A dynamic, utility-first CSS generator that creates rules on-the-fly based on HTML class names.
  *
- * Usage: Just include this script. It runs automatically on DOMContentLoaded
- * and observes future DOM changes via MutationObserver.
+ * Usage:
+ * Simply include this script in your project. It automatically initializes on 
+ * DOMContentLoaded and uses a MutationObserver to style dynamically added elements.
  *
- * Class name format:
- *   property-value          → e.g. paddingTop-8px
- *   hover:property-value    → e.g. hover:color-red
- *   mobile:property-value   → e.g. mobile:fontSize-16px  (≤768px)
- *   mobile:hover:property-value → e.g. mobile:hover:color-blue
+ * Core Syntax:
+ *   [property]-[value]            → e.g., paddingTop-8px
+ *   [pseudo]:[prop]-[val]         → e.g., hover:color-red
+ *   mobile:[prop]-[val]           → e.g., mobile:fontSize-16px  (Applies at ≤768px)
+ *   mobile:[pseudo]:[prop]-[val]  → e.g., mobile:hover:color-blue
  *
- * For CSS values with spaces (e.g. border: solid black 1px),
- * replace spaces with underscores: border-solid_black_1px
+ * Handling Spaces:
+ *   For CSS values that require spaces, replace the spaces with underscores (_):
+ *   border-1px_solid_black        → generates: `border: 1px solid black;`
+ *
+ * Custom Macros:
+ *   The script also includes shorthand macros for common UI patterns. 
+ *   These fully support responsive and pseudo-class prefixes (e.g., `mobile:ecgrid-1x4`).
+ * 
+ *   - eccard                      → Generates a standard card container styling 
+ *                                   (background, border, 12px radius, hidden overflow).
+ *   - ecgrid-{C}x{R}              → Generates a CSS grid with {C} columns and {R} rows.
+ *                                   (e.g., `ecgrid-3x2` creates a 3-column, 2-row grid).
  */
 
 (function () {
@@ -25,6 +34,8 @@
   var MOBILE_BREAKPOINT = 768;
   var STYLE_TAG_ID = "ec-stylesheet-rules";
   var PROCESSED_ATTR = "data-ec-processed";
+  var IS_FONT_SET = false;
+  var IS_BORDER_BOX_SET = false;
 
   /* ─── CSS property name map (camelCase → kebab-case) ────────────────── */
 
@@ -329,6 +340,20 @@
   }
 
   function scanDOM() {
+    if (!IS_FONT_SET) {
+      // Set a default font-family for better aesthetics
+      var fontRule = "* { font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif; }";
+      generatedRules["global-font"] = fontRule;
+      getStyleTag().textContent += "\n" + fontRule;
+      IS_FONT_SET = true;
+    }
+    if (!IS_BORDER_BOX_SET) {
+      // Ensure all elements use border-box for more intuitive sizing
+      var globalRule = "* { box-sizing: border-box; }";
+      generatedRules["global-border-box"] = globalRule;
+      getStyleTag().textContent += "\n" + globalRule;
+      IS_BORDER_BOX_SET = true;
+    }
     var elements = document.querySelectorAll("*:not([" + PROCESSED_ATTR + "])");
     elements.forEach(function (el) {
       processElement(el);
