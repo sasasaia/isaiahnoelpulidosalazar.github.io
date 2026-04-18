@@ -250,6 +250,21 @@
       };
     }
 
+    // 3. Bounce animation (e.g., ecbounce-3)
+    var bounceMatch = declaration.match(/^ecbounce-(\d+)$/);
+    if (bounceMatch) {
+      return {
+        className: token,
+        isMobile: isMobile,
+        pseudoClass: pseudoClass,
+        cssBlock: [
+          "transition: 0.2s;",
+          ":hover { transform: scale(" + (1 + Number(bounceMatch[1]) / 100) + "); }",
+          ":active { transform: scale(" + (1 - Number(bounceMatch[1]) / 100) + "); }"
+        ]
+      };
+    }
+
     // --- Standard property-value parser ---
     var dashIndex = declaration.search(/(?<=[a-zA-Z])-/);
     if (dashIndex === -1) return null;
@@ -284,6 +299,27 @@
     var declaration = descriptor.cssText 
       ? descriptor.cssText 
       : (descriptor.cssProperty + ": " + descriptor.cssValue + ";");
+    
+    if (descriptor.cssBlock) {
+      var rules = [];
+      descriptor.cssBlock.forEach(function (rule) {
+        if (rule.startsWith(":")) {
+          rules.push(selector + rule);
+        } else {
+          rules.push(selector + " { " + rule + " }");
+        }
+      });
+      if (descriptor.isMobile) {
+        return (
+          "@media (max-width: " +
+          MOBILE_BREAKPOINT +
+          "px) { " +
+          rules.join(" ") +
+          " }"
+        );
+      }
+      return rules.join(" ");
+    }
 
     if (descriptor.isMobile) {
       return (

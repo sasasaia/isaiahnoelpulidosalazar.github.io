@@ -95,7 +95,17 @@
         comp_2.appendChild(comp_2_col_1);
 
         // ECMediaCard
-        var comp_3 = new ECMediaCard({"author":"ECDemo", "noAvatar": "true","imageSrc":"https://i.ibb.co/pj0JnJJw/Screenshot-2026-04-16-201447.png","imageAlt":"ECDemo image","imageHeight":"200px","content":"This page demonstrates how to use ECStyleSheet and ECElements to create beautiful web interfaces."});
+        var comp_3 = new ECMediaCard({
+            "author": "ECDemo",
+            "noAvatar": "true",
+            "imageSrc": "https://i.ibb.co/pj0JnJJw/Screenshot-2026-04-16-201447.png",
+            "imageAlt": "ECDemo image",
+            "imageHeight": "200px",
+            "content": "This page demonstrates how to use ECStyleSheet and ECElements to create beautiful web interfaces.",
+            "onClick": () => {
+                window.open("ecdemo.html");
+            },
+        });
         if(comp_3 && comp_3.setTheme) comp_3.setTheme(window.ECTheme['Blue']);
         comp_2_col_1.appendChild(comp_3.element || comp_3);
 
@@ -104,7 +114,17 @@
         comp_2.appendChild(comp_2_col_2);
 
         // ECMediaCard
-        var comp_4 = new ECMediaCard({"author":"ECWebsiteBuilder","noAvatar":"true","imageSrc":"https://i.ibb.co/Fk6YKJ5f/Screenshot-2026-04-16-202219.png","imageAlt":"ECWebsiteBuilder image","imageHeight":"200px","content":"ECWebsiteBuilder is a powerful tool that allows you to create stunning websites with ease using ECStyleSheet and ECElements."});
+        var comp_4 = new ECMediaCard({
+            "author": "ECWebsiteBuilder",
+            "noAvatar": "true",
+            "imageSrc": "https://i.ibb.co/Fk6YKJ5f/Screenshot-2026-04-16-202219.png",
+            "imageAlt": "ECWebsiteBuilder image",
+            "imageHeight": "200px",
+            "content": "ECWebsiteBuilder is a powerful tool that allows you to create stunning websites with ease using ECStyleSheet and ECElements.",
+            "onClick": () => {
+                window.open("ecwebsitebuilder.html");
+            },
+        });
         if(comp_4 && comp_4.setTheme) comp_4.setTheme(window.ECTheme['Blue']);
         comp_2_col_2.appendChild(comp_4.element || comp_4);
 

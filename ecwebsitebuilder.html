@@ -10,7 +10,7 @@
   <script src="js/ECElements.js"></script>
 
   <style>
-    /* Builder interactions & pseudo-states that are complex to write strictly with inline utility classes */
+    /* Builder interactions & pseudo-states */
     #canvas.drop-zone { min-height: 100%; }
     .drop-zone { transition: background-color 0.2s, border-color 0.2s; }
     
@@ -56,7 +56,7 @@
     }
     .control-btn:hover { background: rgba(255,255,255,0.2); }
 
-    /* For textarea inputs since ECElements does not natively provide a textarea component */
+    /* Textarea for properties */
     .prop-textarea {
       width: 100%; padding: 8px; border: 1px solid #ced4da; border-radius: 4px;
       font-size: 13px; box-sizing: border-box; background: #fff; resize: vertical;
@@ -72,7 +72,7 @@
     <div class="padding-16px background-#212529 color-#ffffff fontWeight-600 fontSize-16px flexShrink-0">Components</div>
     <div id="component-list" class="padding-12px overflowY-auto flex-1 minHeight-0"></div>
     <div id="sidebar-footer" class="padding-16px background-var(--ec-surface,_#f8f9fa) borderTop-1px_solid_var(--ec-border,_#dee2e6) flexShrink-0">
-      <!-- Export button will be injected here via ECElements -->
+      <!-- Export button injected via JS -->
     </div>
   </div>
   
@@ -91,39 +91,40 @@
       // Global App State
       window.currentAppTheme = 'Blue';
       window.currentAppDarkMode = false;
-      window.globalCanvasClasses = 'padding-40px'; // Set default padding for aesthetics
+      window.globalCanvasClasses = 'padding-40px'; 
 
-      // Set builder export button using ECElements
+      // Set builder export button
       const exportBtn = new ECButton('Export', { variant: 'filled' });
       exportBtn.element.className += ' width-100% padding-10px';
-      exportBtn.onClick(exportToJS);
+      exportBtn.onClick(exportToHybridHTML);
       document.getElementById('sidebar-footer').appendChild(exportBtn.element);
 
-      // Helper to rebuild components
-      function rebuildComponent(wrapper, constructFn) {
-          const data = wrapper.ecObj._builder_data;
-          const newObj = constructFn(data);
-          newObj._builder_data = data;
+      // Wrapper for standard Typography elements (rendered directly in DOM)
+      class ECTypography {
+        constructor(tag, defaultText) {
+          this.element = document.createElement(tag);
+          this.element.innerText = defaultText;
           
-          newObj.element.dataset.baseClass = newObj.element.className;
+          let baseClass = 'margin-0 color-var(--ec-text,_#212529)';
+          if (tag === 'h1') baseClass += ' fontSize-32px fontWeight-700 lineHeight-1.2';
+          if (tag === 'h2') baseClass += ' fontSize-24px fontWeight-600 lineHeight-1.3';
+          if (tag === 'p') baseClass += ' fontSize-16px lineHeight-1.6 color-var(--ec-text-muted,_#6c757d)';
           
-          if (wrapper.ecObj.element.dataset.builderFixed) {
-              newObj.element.dataset.builderFixed = wrapper.ecObj.element.dataset.builderFixed;
-          }
-
-          if (data.className) newObj.element.className += ' ' + data.className;
-
-          wrapper.replaceChild(newObj.element, wrapper.ecObj.element);
-          wrapper.ecObj = newObj;
-          
-          if(newObj.setTheme) newObj.setTheme(window.ECTheme[window.currentAppTheme]);
-          if(window.currentAppDarkMode && newObj.enableDarkMode) newObj.enableDarkMode();
-          else if(!window.currentAppDarkMode && newObj.disableDarkMode) newObj.disableDarkMode();
-          
-          if(window.ECStyleSheet) window.ECStyleSheet.scan();
+          this.element.className = baseClass;
+          this.element.dataset.baseClass = baseClass;
+          this._builder_data = { text: defaultText, tag: tag, align: 'left', className: '' };
+        }
+        setText(text) { this.element.innerText = text; }
+        setAlign(align) {
+          this.element.classList.remove('textAlign-left', 'textAlign-center', 'textAlign-right', 'textAlign-justify');
+          if(align && align !== 'left') this.element.classList.add(`textAlign-${align}`);
+          this.element.dataset.baseClass = this.element.className.replace(this._builder_data.className || '', '').trim();
+        }
+        // Empty methods to satisfy theme loopers
+        setTheme() {} enableDarkMode() {} disableDarkMode() {}
       }
 
-      // Wrapper for Layout Containers
+      // Wrapper for Layout Containers supporting dynamic columns
       class LayoutContainer {
         constructor(type) {
           this.element = document.createElement('div');
@@ -158,10 +159,15 @@
           }
         }
         getColumns() { return this._builder_data.columns; }
+        setTheme() {} enableDarkMode() {} disableDarkMode() {}
       }
 
       // Factory for Instantiating Components with defaults
       const componentFactory = {
+        'Typography: Heading': () => new ECTypography('h1', 'Main Heading'),
+        'Typography: Sub-heading': () => new ECTypography('h2', 'Sub-heading'),
+        'Typography: Paragraph': () => new ECTypography('p', 'This is a paragraph of text. You can edit this directly from the properties panel to describe your content.'),
+        
         'Layout: Blank Container': () => new LayoutContainer('Blank Container'),
         'Layout: Card Container': () => new LayoutContainer('Card Container'),
         'ECSidebar': () => {
@@ -252,7 +258,7 @@
         },
         'ECDivider': () => {
           const d = new ECDivider({ label: 'Divider' });
-          d._builder_data = { label: 'Divider', thick: false, dashed: false, vertical: false };
+          d._builder_data = { label: 'Divider', thick: false, dashed: false };
           return d;
         },
         'ECButton': () => {
@@ -307,8 +313,40 @@
         }
       };
 
-      // Property editor bindings
+      // Property Editor Bindings
+      const typoProps = [
+        { label: 'Text', key: 'text', type: 'textarea', update: (o, v) => o.setText(v) },
+        { label: 'Alignment', key: 'align', type: 'select', options: ['left', 'center', 'right', 'justify'], update: (o, v) => o.setAlign(v) }
+      ];
+
+      function rebuildComponent(wrapper, constructFn) {
+          const data = wrapper.ecObj._builder_data;
+          const newObj = constructFn(data);
+          newObj._builder_data = data;
+          
+          if(!newObj.element.dataset.baseClass) newObj.element.dataset.baseClass = newObj.element.className;
+          
+          if (wrapper.ecObj.element.dataset.builderFixed) {
+              newObj.element.dataset.builderFixed = wrapper.ecObj.element.dataset.builderFixed;
+          }
+
+          if (data.className) newObj.element.className += ' ' + data.className;
+
+          wrapper.replaceChild(newObj.element, wrapper.ecObj.element);
+          wrapper.ecObj = newObj;
+          
+          if(newObj.setTheme) newObj.setTheme(window.ECTheme[window.currentAppTheme]);
+          if(window.currentAppDarkMode && newObj.enableDarkMode) newObj.enableDarkMode();
+          else if(!window.currentAppDarkMode && newObj.disableDarkMode) newObj.disableDarkMode();
+          
+          if(window.ECStyleSheet) window.ECStyleSheet.scan();
+      }
+
       const propsConfig = {
+        'Typography: Heading': typoProps,
+        'Typography: Sub-heading': typoProps,
+        'Typography: Paragraph': typoProps,
+        
         'Layout: Blank Container': [{ label: 'Columns', key: 'columns', type: 'number', update: (o, v) => o.setColumns(v) }],
         'Layout: Card Container': [{ label: 'Columns', key: 'columns', type: 'number', update: (o, v) => o.setColumns(v) }],
         'ECSidebar': [
@@ -392,7 +430,6 @@
           { label: 'Label', key: 'label', type: 'text', update: (o, v, w) => rebuildComponent(w, d => new ECDivider(d)) },
           { label: 'Thick', key: 'thick', type: 'checkbox', update: (o, v, w) => rebuildComponent(w, d => new ECDivider(d)) },
           { label: 'Dashed', key: 'dashed', type: 'checkbox', update: (o, v, w) => rebuildComponent(w, d => new ECDivider(d)) },
-          { label: 'Vertical', key: 'vertical', type: 'checkbox', update: (o, v, w) => rebuildComponent(w, d => new ECDivider(d)) }
         ],
         'ECButton': [
           { label: 'Label', key: 'label', type: 'text', update: (o, v) => o.setLabel(v) },
@@ -459,6 +496,9 @@
       };
 
       const componentGroups = {
+        'Typography': [
+           'Typography: Heading', 'Typography: Sub-heading', 'Typography: Paragraph'
+        ],
         'Layout & Navigation': [
            'Layout: Blank Container', 'Layout: Card Container',
            'ECSidebar', 'ECTopbar', 'ECBanner', 'ECBreadcrumbs', 'ECStepper', 'ECCarousel', 'ECHero', 'ECMediaCard'
@@ -531,6 +571,7 @@
         wrapper.appendChild(controls);
         
         const contentEl = ecObj.element || ecObj;
+        if(!contentEl.dataset.baseClass) contentEl.dataset.baseClass = contentEl.className;
         wrapper.appendChild(contentEl);
 
         if(ecObj.setTheme) ecObj.setTheme(window.ECTheme[window.currentAppTheme]);
@@ -768,7 +809,7 @@
         });
       }
 
-      // Generate JS Component Code Block
+      // Generate JS for ECElements
       function generateComponentJS(type, data, v) {
         let code = `    // ${type}\n    `;
         const safeStr = val => JSON.stringify(val || '');
@@ -845,46 +886,56 @@
           ecElementsCode = jsString;
         });
 
-      // Export Functionality producing programmatic JavaScript
-      function exportToJS() {
-        let jsCode = `    // ECWebsite Generated JS\n`;
-        jsCode += `    var root = document.body;\n\n`;
+      // Hybrid Export Logic
+      function exportToHybridHTML() {
+        let jsCode = `    // ECWebsite Generated JS Components\n`;
+        let htmlOut = ``;
         let varId = 0;
-        
-        function generateZoneJS(zoneNode, parentVar) {
-          const items = Array.from(zoneNode.children).filter(c => c.classList.contains('canvas-item'));
-          
-          items.forEach(item => {
-            const type = item.dataset.type;
-            const data = item.ecObj._builder_data || {};
-            const v = 'comp_' + (++varId);
-            
-            if (type.startsWith('Layout:')) {
-               jsCode += `    // ${type}\n`;
-               jsCode += `    var ${v} = document.createElement('div');\n`;
-               let cClasses = 'display-flex gap-16px width-100% boxSizing-border-box flexWrap-wrap';
-               if (type === 'Layout: Card Container') cClasses += ' eccard padding-24px';
-               if (data.className) cClasses += ' ' + data.className;
-               jsCode += `    ${v}.className = '${cClasses}';\n`;
-               jsCode += `    ${parentVar}.appendChild(${v});\n\n`;
-               
-               const cols = Array.from(item.ecObj.element.children).filter(c => c.classList.contains('col-layout'));
-               cols.forEach((col, idx) => {
-                   let colVar = v + '_col_' + (idx + 1);
-                   jsCode += `    var ${colVar} = document.createElement('div');\n`;
-                   jsCode += `    ${colVar}.className = 'flex-1 display-flex flexDirection-column gap-12px boxSizing-border-box minWidth-200px';\n`;
-                   jsCode += `    ${v}.appendChild(${colVar});\n\n`;
-                   
-                   generateZoneJS(col, colVar);
-               });
-            } else {
-               jsCode += generateComponentJS(type, data, v);
-               jsCode += `    ${parentVar}.appendChild(${v}.element || ${v});\n\n`;
-            }
-          });
+
+        function processNode(node, indent) {
+            let out = '';
+            const items = Array.from(node.children).filter(c => c.classList.contains('canvas-item') || c.classList.contains('col-layout'));
+
+            items.forEach(child => {
+                if (child.classList.contains('col-layout')) {
+                    out += `${indent}<div class="flex-1 display-flex flexDirection-column gap-12px boxSizing-border-box minWidth-200px">\n`;
+                    out += processNode(child, indent + '  ');
+                    out += `${indent}</div>\n`;
+                    return;
+                }
+
+                const type = child.dataset.type;
+                const data = child.ecObj._builder_data || {};
+                const customClasses = data.className ? ` ${data.className}` : '';
+
+                if (type.startsWith('Layout:')) {
+                    let baseCls = 'display-flex gap-16px width-100% boxSizing-border-box flexWrap-wrap';
+                    if (type === 'Layout: Card Container') baseCls += ' eccard padding-24px';
+                    out += `${indent}<div class="${baseCls}${customClasses}">\n`;
+                    out += processNode(child.ecObj.element, indent + '  ');
+                    out += `${indent}</div>\n`;
+                } 
+                else if (type.startsWith('Typography:')) {
+                    const tag = data.tag || 'p';
+                    const baseCls = child.ecObj.element.className.replace('canvas-item', '').replace('selected', '').replace(/drop-zone|drag-over/g, '').trim();
+                    const textHTML = (data.text || '').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
+                    out += `${indent}<${tag} class="${baseCls}${customClasses}">${textHTML}</${tag}>\n`;
+                }
+                else {
+                    varId++;
+                    const anchorId = `ec_anchor_${varId}`;
+                    out += `${indent}<!-- Placeholder for ${type} -->\n`;
+                    out += `${indent}<div id="${anchorId}"></div>\n`;
+
+                    const v = 'comp_' + varId;
+                    jsCode += generateComponentJS(type, data, v);
+                    jsCode += `    document.getElementById('${anchorId}').replaceWith(${v}.element || ${v});\n\n`;
+                }
+            });
+            return out;
         }
 
-        generateZoneJS(document.getElementById('canvas'), 'root');
+        htmlOut += processNode(document.getElementById('canvas'), '  ');
 
         const bg = window.currentAppDarkMode ? '#1a1a2e' : '#f1f3f5';
         const htmlContent = `<!DOCTYPE html>
@@ -908,10 +959,14 @@
   </style>
 </head>
 <body class="${window.globalCanvasClasses}">
-  <!-- Layout is injected by JS -->
+  
+  <!-- Hybrid Structure (Layouts & Typography in DOM, ECElements via JS anchors) -->
+${htmlOut}
+
   <script>
   document.addEventListener("DOMContentLoaded", function() {
 ${jsCode}
+    // Re-trigger dynamic stylesheet to catch dynamically injected classes
     if (window.ECStyleSheet) window.ECStyleSheet.scan();
   });
   <\/script>

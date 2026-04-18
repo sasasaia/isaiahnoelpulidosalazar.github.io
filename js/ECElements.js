@@ -939,33 +939,28 @@
   function ECDivider(options) {
     options = options || {};
     this._label = options.label || null;
-    var isVertical = options.vertical || false;
 
     if (this._label) {
       this.element = document.createElement("div");
       this.element.className = BASE_CLS + " display-flex alignItems-center gap-12px margin-16px_0";
       
       var left = document.createElement("hr");
-      left.className = "border-none borderTop-1px_solid_var(--ec-border,_#dee2e6) margin-0 flex-1";
+      left.className = "borderLeft-none borderRight-none borderBottom-none borderTop-1px_solid_var(--ec-border,_#dee2e6) margin-0 flex-1";
 
       var span = document.createElement("span");
       span.className = "fontSize-12px fontWeight-500 color-var(--ec-text-muted,_#6c757d) whiteSpace-nowrap";
       span.textContent = this._label;
 
       var right = document.createElement("hr");
-      right.className = "border-none borderTop-1px_solid_var(--ec-border,_#dee2e6) margin-0 flex-1";
+      right.className = "borderLeft-none borderRight-none borderBottom-none borderTop-1px_solid_var(--ec-border,_#dee2e6) margin-0 flex-1";
 
       this.element.appendChild(left);
       this.element.appendChild(span);
       this.element.appendChild(right);
     } else {
       this.element = document.createElement("hr");
-      this.element.className = BASE_CLS + " border-none";
-      if (isVertical) {
-        this.element.classList.add("borderLeft-1px_solid_var(--ec-border,_#dee2e6)", "margin-0_16px", "width-auto", "alignSelf-stretch", "display-inline-block", "height-auto");
-      } else {
-        this.element.classList.add("borderTop-1px_solid_var(--ec-border,_#dee2e6)", "margin-16px_0", "width-100%");
-      }
+      this.element.className = BASE_CLS + " borderLeft-none borderRight-none borderBottom-none";
+      this.element.classList.add("borderTop-1px_solid_var(--ec-border,_#dee2e6)", "margin-16px_0", "width-100%");
       if (options.thick) this.element.classList.add("borderTopWidth-2px");
       if (options.dashed) this.element.classList.add("borderTopStyle-dashed");
     }
@@ -1827,6 +1822,12 @@
       if (options.imageHeight) cardImg.style.height = options.imageHeight;
       imgWrap.appendChild(cardImg);
       this.element.appendChild(imgWrap);
+    }
+
+    if (options.onClick) {
+      this.element.style.cursor = "pointer";
+      this.element.addEventListener("click", options.onClick);
+      this.element.classList.add(`ecbounce-${options.bounceAmount || 2}`);
     }
 
     this._body = document.createElement("div");
