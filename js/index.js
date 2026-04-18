@@ -96,3 +96,20 @@ var comp_6 = new ECMediaCard({
 });
 if(comp_6 && comp_6.setTheme) comp_6.setTheme(window.ECTheme['Blue']);
 comp_2_col_4.appendChild(comp_6.element || comp_6);
+var comp_2_col_5 = document.createElement('div');
+comp_2_col_5.className = 'flex-1 display-flex flexDirection-column gap-12px boxSizing-border-box minWidth-200px';
+comp_2.appendChild(comp_2_col_5);
+// ECMediaCard
+var comp_7 = new ECMediaCard({
+    "author": "ECIDE",
+    "noAvatar": "true",
+    "imageSrc": "https://i.ibb.co/qMXmdpxN/Screenshot-2026-04-18-183706.png",
+    "imageAlt": "ECIDE image",
+    "imageHeight": "200px",
+    "content": "ECIDE is an integrated development environment built with ECStyleSheet and ECElements, designed to provide a seamless coding experience.",
+    "onClick": () => {
+        window.open("ecide/", "_blank");
+    },
+});
+if(comp_7 && comp_7.setTheme) comp_7.setTheme(window.ECTheme['Blue']);
+comp_2_col_5.appendChild(comp_7.element || comp_7);
