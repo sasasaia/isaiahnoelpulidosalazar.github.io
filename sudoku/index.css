@@ -49,6 +49,16 @@ button:hover { opacity: 0.8; }
     font-weight: bold;
     outline: none;
 }
+@media (max-width: 768px) {
+    #sudoku-grid {
+        grid-template-columns: repeat(9, 36px);
+        grid-template-rows: repeat(9, 36px);
+    }
+    .cell {
+        width: 36px;
+        height: 36px;
+    }
+}
 /* 3x3 Border Styling */
 .cell:nth-child(3n) { border-right: 2px solid var(--grid-color); }
 .cell:nth-child(9n) { border-right: none; }
