@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ECIDE</title>
+    
+    <!-- Google Fonts: Roboto Mono for Editor & Google Sans for UI -->
+    <link href="https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet">
+    
+    <style>
+        @font-face {
+            font-family: 'Google Sans';
+            src: url('https://fonts.gstatic.com/s/productsans/v5/HYvgU2fE2nRJvZ5JFAumwegdm0LZdjqr5-oayXSOefg.woff2') format('woff2');
+        }
+        
+        :root {
+            /* Light Theme Variables */
+            --ide-bg: #ffffff;
+            --ide-surface: #f8f9fa;
+            --ide-border: #dee2e6;
+            --ide-text: #212529;
+            --ide-text-muted: #6c757d;
+            --ide-accent: #1a73e8;
+            
+            /* Override ECElements specific variables */
+            --ec-bg: var(--ide-bg);
+            --ec-surface: var(--ide-surface);
+            --ec-border: var(--ide-border);
+            --ec-text: var(--ide-text);
+            --ec-text-muted: var(--ide-text-muted);
+            --ec-accent: var(--ide-accent);
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Google Sans', sans-serif;
+            background: var(--ide-bg);
+            color: var(--ide-text);
+            overflow: hidden;
+        }
+
+        /* Editor specific font bypass */
+        .monaco-editor * {
+            font-family: 'Roboto Mono', monospace !important;
+        }
+
+        /* Custom subtle scrollbar */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: var(--ide-border); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--ide-text-muted); }
+    </style>
+
+    <!-- Required ECElements & ECStyleSheet Scripts -->
+    <script src="../js/ECStyleSheet.js"></script>
+    <script src="../js/ECElements.js"></script>
+    
+    <!-- Monaco Editor Loader (using jsdelivr to prevent missing codicon fonts) -->
+    <script>
+        var require = { paths: { 'vs': 'https://cdn.jsdelivr.net/npm/monaco-editor@0.44.0/min/vs' } };
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.44.0/min/vs/loader.js"></script>
+</head>
+
+<body class="width-100vw height-100vh overflow-hidden">
+    <!-- Topbar Container -->
+    <div id="topbar-container"></div>
+    
+    <!-- Main Workspace Container -->
+    <div class="display-flex width-100% height-calc(100vh_-_56px) marginTop-56px">
+        
+        <!-- Sidebar -->
+        <div id="sidebar" class="width-260px borderRight-1px_solid_var(--ide-border) background-var(--ide-surface) display-flex flexDirection-column flexShrink-0">
+            <div class="padding-16px_16px_8px display-flex justifyContent-space-between alignItems-center">
+                <div class="color-var(--ide-text-muted) fontSize-12px fontWeight-600 letterSpacing-0.05em">EXPLORER</div>
+            </div>
+            <!-- File Tree Workspace -->
+            <div id="tree-container" class="flex-1 overflowY-auto padding-0_8px_16px">
+                <div class="color-var(--ide-text-muted) fontSize-13px padding-8px">Open a folder to see files.</div>
+            </div>
+        </div>
+
+        <!-- Editor Pane -->
+        <div id="editor-container" class="flex-1 position-relative background-var(--ide-bg)"></div>
+    </div>
+
+    <!-- Application Logic -->
+    <script src="index.js"></script>
+</body>
+</html>
