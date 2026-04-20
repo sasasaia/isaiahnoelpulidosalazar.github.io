@@ -37,6 +37,30 @@
         <meta name="msapplication-TileColor" content="#F4F4F4">
         <meta name="msapplication-TileImage" content="ms-icon-144x144.png">
         <title>Index</title>
+        <script type="speculationrules">
+            {
+                "prerender": [
+                    {
+                        "source": "list",
+                        "urls": [
+                            "/ecdemo/"
+                        ]
+                    }
+                ],
+                "prefetch": [
+                    {
+                        "source": "list",
+                        "urls": [
+                            "/calm/",
+                            "/chess/",
+                            "/ecide/",
+                            "/ecwebsitebuilder/",
+                            "/sudoku/",
+                        ]
+                    }
+                ]
+            }
+        </script>
         <script src="js/ECStyleSheet.js"></script>
         <script src="js/ECElements.js"></script>
         <link rel="preconnect" href="https://fonts.googleapis.com">
