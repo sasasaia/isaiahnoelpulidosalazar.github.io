@@ -23,14 +23,14 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById('bot-info-container').appendChild(botCard.element);
   
   // Spinner to indicate thinking
-  const spinnerContainer = document.createElement('div');
-  spinnerContainer.className = "display-none alignItems-center gap-8px marginTop-8px color-var(--ec-text-muted,_#6c757d) fontSize-14px fontWeight-500";
-  const spinner = new window.ECSpinner({ size: "sm" });
-  spinnerContainer.appendChild(spinner.element);
-  const spinnerText = document.createElement("span");
-  spinnerText.textContent = "Bot is thinking...";
-  spinnerContainer.appendChild(spinnerText);
-  document.getElementById('bot-info-container').appendChild(spinnerContainer);
+  // const spinnerContainer = document.createElement('div');
+  // spinnerContainer.className = "display-none alignItems-center gap-8px marginTop-8px color-var(--ec-text-muted,_#6c757d) fontSize-14px fontWeight-500";
+  // const spinner = new window.ECSpinner({ size: "sm" });
+  // spinnerContainer.appendChild(spinner.element);
+  // const spinnerText = document.createElement("span");
+  // spinnerText.textContent = "Bot is thinking...";
+  // spinnerContainer.appendChild(spinnerText);
+  // document.getElementById('bot-info-container').appendChild(spinnerContainer);
   // Color Randomizer Dropdown
   const colorDropdown = new window.ECDropdown({
     label: "Play as",
@@ -344,7 +344,7 @@ document.addEventListener("DOMContentLoaded", () => {
   function makeBotMove() {
     if (!gameActive) return;
     // Show thinking UI
-    spinnerContainer.classList.replace("display-none", "display-flex");
+    // spinnerContainer.classList.replace("display-none", "display-flex");
     
     // Timeout prevents block & allows the DOM spinner to render before intensive calculation
     setTimeout(() => {
@@ -366,7 +366,7 @@ document.addEventListener("DOMContentLoaded", () => {
       game.move(move);
       updateBoard();
       updateSidebar();
-      spinnerContainer.classList.replace("display-flex", "display-none");
+      // spinnerContainer.classList.replace("display-flex", "display-none");
       checkGameOver();
     }, 50);
   }
