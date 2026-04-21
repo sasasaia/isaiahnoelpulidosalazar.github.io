@@ -4,6 +4,7 @@ on:
   push:
     paths:
       - 'cs/**.cs'
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -28,7 +29,7 @@ jobs:
         shell: pwsh
         run: |
           $file = Get-Content "cs/chease.cs"
-          $line = $file | Select-String "current version - \s*(\d+\.\d+\.\d+)"
+          $line = $file | Select-String "current\sversion\s-\s*(\d+\.\d+\.\d+)"
 
           if (-not $line) {
             Write-Error "Version not found. Add: // current version - 1.0.0"
@@ -47,6 +48,21 @@ jobs:
       - name: Publish EXE
         run: dotnet publish chease -c Release -r win-x64 --self-contained true -o publish
 
+      - name: Rename EXE with version
+        shell: pwsh
+        run: |
+          $version = "${{ steps.version.outputs.VERSION }}"
+          $old = "publish\chease.exe"
+          $new = "publish\chease-v$version.exe"
+
+          if (Test-Path $old) {
+            Rename-Item $old $new
+          } else {
+            Write-Error "EXE not found in publish folder"
+            dir publish
+            exit 1
+          }
+
       - name: Create Git tag
         shell: pwsh
         run: |
@@ -63,6 +79,6 @@ jobs:
         with:
           tag_name: v${{ steps.version.outputs.VERSION }}
           name: Release v${{ steps.version.outputs.VERSION }}
-          files: publish/*.exe
+          files: publish/chease-v${{ steps.version.outputs.VERSION }}.exe
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
