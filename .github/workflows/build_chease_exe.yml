@@ -5,6 +5,9 @@ on:
     paths:
       - 'cs/**.cs'
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: windows-latest
@@ -12,11 +15,28 @@ jobs:
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '8.0.x'
+
+      - name: Extract version from C# comment
+        id: version
+        shell: pwsh
+        run: |
+          $file = Get-Content "cs/chease.cs"
+          $line = $file | Select-String "current version - \s*(\d+\.\d+\.\d+)"
+
+          if (-not $line) {
+            Write-Error "Version not found. Add: // current version - 1.0.0"
+            exit 1
+          }
+
+          $version = $line.Matches[0].Groups[1].Value
+          echo "VERSION=$version" >> $env:GITHUB_OUTPUT
 
       - name: Create project
         run: dotnet new console -n chease
@@ -27,9 +47,22 @@ jobs:
       - name: Publish EXE
         run: dotnet publish chease -c Release -r win-x64 --self-contained true
 
+      - name: Create Git tag
+        shell: pwsh
+        run: |
+          $tag = "v${{ steps.version.outputs.VERSION }}"
+
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+
+          git tag $tag
+          git push origin $tag
+
       - name: Create Release and Upload EXE
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: v${{ steps.version.outputs.VERSION }}
+          name: Release v${{ steps.version.outputs.VERSION }}
           files: chease/bin/Release/net8.0/win-x64/publish/*.exe
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
