@@ -46,22 +46,7 @@ jobs:
         run: copy cs\chease.cs chease\Program.cs
 
       - name: Publish EXE
-        run: dotnet publish chease -c Release -r win-x64 --self-contained true -o publish
-
-      - name: Rename EXE with version
-        shell: pwsh
-        run: |
-          $version = "${{ steps.version.outputs.VERSION }}"
-          $old = "publish\chease.exe"
-          $new = "publish\chease-v$version.exe"
-
-          if (Test-Path $old) {
-            Rename-Item $old $new
-          } else {
-            Write-Error "EXE not found in publish folder"
-            dir publish
-            exit 1
-          }
+        run: dotnet publish chease -c Release -r win-x64 --self-contained true -o publish /p:AssemblyName=chease-v${{ steps.version.outputs.VERSION }}
 
       - name: Create Git tag
         shell: pwsh
@@ -79,6 +64,6 @@ jobs:
         with:
           tag_name: v${{ steps.version.outputs.VERSION }}
           name: Release v${{ steps.version.outputs.VERSION }}
-          files: publish/chease-v${{ steps.version.outputs.VERSION }}.exe
+          files: publish/**/*.exe
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
