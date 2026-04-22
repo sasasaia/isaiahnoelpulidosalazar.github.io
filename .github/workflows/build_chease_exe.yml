@@ -38,6 +38,35 @@ jobs:
 
           $version = $line.Matches[0].Groups[1].Value
           echo "VERSION=$version" >> $env:GITHUB_OUTPUT
+      
+      - name: Extract changes from C# comments
+        id: changes
+        shell: pwsh
+        run: |
+          $file = Get-Content "cs/chease.cs"
+
+          $start = $file | Select-String "// changes:" | Select-Object -First 1
+
+          if (-not $start) {
+            echo "CHANGES=No changes listed." >> $env:GITHUB_OUTPUT
+            exit 0
+          }
+
+          $index = $start.LineNumber - 1
+          $changes = @()
+
+          for ($i = $index + 1; $i -lt $file.Length; $i++) {
+            if ($file[$i] -match "^\s*//\s*-\s*(.*)") {
+              $changes += "- " + $matches[1]
+            } else {
+              break
+            }
+          }
+
+          $changesText = $changes -join "`n"
+          echo "CHANGES<<EOF" >> $env:GITHUB_OUTPUT
+          echo $changesText >> $env:GITHUB_OUTPUT
+          echo "EOF" >> $env:GITHUB_OUTPUT
 
       - name: Create project
         run: dotnet new console -n chease
@@ -46,9 +75,23 @@ jobs:
         run: copy cs\chease.cs chease\Program.cs
 
       - name: Publish EXE
-        run: dotnet publish chease -c Release -r win-x64 --self-contained true -o publish /p:AssemblyName=chease-v${{ steps.version.outputs.VERSION }}
+        run: dotnet publish chease -c Release -r win-x64 --self-contained true /p:PublishSingleFile=true /p:IncludeNativeLibrariesForSelfExtract=true /p:AssemblyName=chease-v${{ steps.version.outputs.VERSION }} -o publish
 
+      - name: Check if tag already exists
+        id: check_tag
+        shell: pwsh
+        run: |
+          $tag = "v${{ steps.version.outputs.VERSION }}"
+          git fetch --tags
+
+          if (git tag -l $tag) {
+            echo "exists=true" >> $env:GITHUB_OUTPUT
+          } else {
+            echo "exists=false" >> $env:GITHUB_OUTPUT
+          }
+      
       - name: Create Git tag
+        if: steps.check_tag.outputs.exists == 'false'
         shell: pwsh
         run: |
           $tag = "v${{ steps.version.outputs.VERSION }}"
@@ -60,10 +103,19 @@ jobs:
           git push origin $tag
 
       - name: Create Release and Upload EXE
+        if: steps.check_tag.outputs.exists == 'false'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ steps.version.outputs.VERSION }}
-          name: Release v${{ steps.version.outputs.VERSION }}
+          name: v${{ steps.version.outputs.VERSION }}
+          body: |
+            Auto-generated release.
+
+            Version: v${{ steps.version.outputs.VERSION }}
+            Built from latest commit in cs/.
+
+            Changes:
+            ${{ steps.changes.outputs.CHANGES }}
           files: publish/chease-v${{ steps.version.outputs.VERSION }}.exe
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

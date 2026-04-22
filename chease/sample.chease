@@ -1,0 +1,35 @@
+say "Enter your name:"
+var name get
+
+say "Enter your age:"
+var age get
+
+var nextAge age + 1
+
+job greet person [
+    say "Hello " + person
+]
+
+job add a b [
+    out a + b
+]
+
+job multiply a b [
+    out a * b
+]
+
+greet name
+
+say "Next year you will be " + nextAge
+
+say "Enter first number:"
+var x get
+
+say "Enter second number:"
+var y get
+
+var sum add x, y
+var product multiply x, y
+
+say "Sum is " + sum
+say "Product is " + product
