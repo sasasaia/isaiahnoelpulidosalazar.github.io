@@ -33,15 +33,13 @@
 
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            // 1. Auth check
             const pwd = localStorage.getItem('admin_pwd');
             if (!pwd) {
                 window.location.href = '../login/index.html';
                 return;
             }
 
-            // 2. Top Navigation Bar
-            const topbar = new ECTopbar("Write a New Post");
+            const topbar = new ECTopbar("Create New Post");
             const logoutBtn = new ECButton("Logout", { variant: "outline" }).onClick(() => {
                 localStorage.removeItem('admin_pwd');
                 window.location.href = '../login/index.html';
@@ -55,10 +53,9 @@
             document.body.appendChild(topbar.element);
 
             const spacer = document.createElement('div');
-            spacer.className = "height-80px"; // Push content below fixed topbar
+            spacer.className = "height-80px";
             document.getElementById('app-container').appendChild(spacer);
 
-            // 3. Post Form Card
             const card = document.createElement('div');
             card.className = "background-var(--ec-bg,_#fff) padding-32px borderRadius-12px boxShadow-0_4px_16px_rgba(0,0,0,0.05) border-1px_solid_var(--ec-border,_#dee2e6)";
 
@@ -91,7 +88,6 @@
                 publishBtn.setLabel("Publishing...");
 
                 try {
-                    // Update to your Render API URL
                     const response = await fetch('https://isaiahnoelpulidosalazar-github-io.onrender.com/api/create-post', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
@@ -100,8 +96,11 @@
 
                     const result = await response.json();
                     if (result.success) {
-                        new ECToast("Success! Taking you to the post...", { type: "success" }).show();
-                        setTimeout(() => window.location.href = '../posts/' + result.url.split('/').pop(), 2000);
+                        new ECToast("Success! Post published.", { type: "success" }).show();
+                        titleInput.setValue('');
+                        contentArea.value = '';
+                        publishBtn.enable();
+                        publishBtn.setLabel("Publish Post");
                     } else {
                         if (response.status === 401) {
                             new ECToast("Unauthorized. Incorrect password.", { type: "error" }).show();
