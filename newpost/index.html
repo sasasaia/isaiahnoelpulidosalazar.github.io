@@ -2,46 +2,128 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=7">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <meta http-equiv="Content-Type" content="text/html;charset=UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#F4F4F4">
+    <meta name="author" content="Isaiah Noel P. Salazar">
+    <link rel="apple-touch-icon" sizes="57x57" href="../apple-icon-57x57.png">
+    <link rel="apple-touch-icon" sizes="60x60" href="../apple-icon-60x60.png">
+    <link rel="apple-touch-icon" sizes="72x72" href="../apple-icon-72x72.png">
+    <link rel="apple-touch-icon" sizes="76x76" href="../apple-icon-76x76.png">
+    <link rel="apple-touch-icon" sizes="114x114" href="../apple-icon-114x114.png">
+    <link rel="apple-touch-icon" sizes="120x120" href="../apple-icon-120x120.png">
+    <link rel="apple-touch-icon" sizes="144x144" href="../apple-icon-144x144.png">
+    <link rel="apple-touch-icon" sizes="152x152" href="../apple-icon-152x152.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="../apple-icon-180x180.png">
+    <link rel="icon" type="image/png" sizes="192x192"  href="../android-icon-192x192.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="../favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="96x96" href="../favicon-96x96.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="../favicon-16x16.png">
+    <link rel="manifest" href="../manifest.json">
+    <meta name="msapplication-TileColor" content="#F4F4F4">
+    <meta name="msapplication-TileImage" content="../ms-icon-144x144.png">
     <title>Create New Post</title>
+    <script src="../js/ECStyleSheet.js"></script>
+    <script src="../js/ECElements.js"></script>
 </head>
-<body>
-    <h1>Write a New Post</h1>
-    <form id="postForm">
-        <label>Title:</label><br>
-        <input type="text" id="title" required style="width: 300px;"><br><br>
-        
-        <label>Content:</label><br>
-        <textarea id="content" rows="10" required style="width: 300px;"></textarea><br><br>
-        
-        <button type="submit">Publish Post</button>
-    </form>
-    <p id="status"></p>
+<body class="background-var(--ec-surface,_#f8f9fa) margin-0 padding-20px">
+    <div id="app-container" class="maxWidth-600px margin-0_auto"></div>
 
     <script>
-        document.getElementById('postForm').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const statusText = document.getElementById('status');
-            statusText.innerText = "Publishing... Please wait.";
-            
-            const title = document.getElementById('title').value;
-            const content = document.getElementById('content').value;
-
-            try {
-                const response = await fetch('https://isaiahnoelpulidosalazar-github-io.onrender.com/api/create-post', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ title, content })
-                });
-
-                const result = await response.json();
-                if(result.success) {
-                    statusText.innerHTML = `Success! <a href="${result.url}">View your post here</a> (It may take 1-2 minutes for GitHub Pages to rebuild).`;
-                } else {
-                    statusText.innerText = "Error: " + result.error;
-                }
-            } catch (err) {
-                statusText.innerText = "Connection failed. Is the Render server running?";
+        document.addEventListener('DOMContentLoaded', () => {
+            // 1. Auth check
+            const pwd = localStorage.getItem('admin_pwd');
+            if (!pwd) {
+                window.location.href = '../login/index.html';
+                return;
             }
+
+            // 2. Top Navigation Bar
+            const topbar = new ECTopbar("Write a New Post");
+            const logoutBtn = new ECButton("Logout", { variant: "outline" }).onClick(() => {
+                localStorage.removeItem('admin_pwd');
+                window.location.href = '../login/index.html';
+            });
+            const postsBtn = new ECButton("View Posts", { variant: "outline" }).onClick(() => {
+                window.location.href = '../posts/index.html';
+            });
+            
+            topbar.addAction(postsBtn);
+            topbar.addAction(logoutBtn);
+            document.body.appendChild(topbar.element);
+
+            const spacer = document.createElement('div');
+            spacer.className = "height-80px"; // Push content below fixed topbar
+            document.getElementById('app-container').appendChild(spacer);
+
+            // 3. Post Form Card
+            const card = document.createElement('div');
+            card.className = "background-var(--ec-bg,_#fff) padding-32px borderRadius-12px boxShadow-0_4px_16px_rgba(0,0,0,0.05) border-1px_solid_var(--ec-border,_#dee2e6)";
+
+            const titleInput = new ECTextbox({ label: "Post Title", placeholder: "E.g., My Awesome Update" });
+            card.appendChild(titleInput.element);
+
+            const contentLabel = document.createElement('label');
+            contentLabel.className = "fontSize-13px fontWeight-500 color-var(--ec-text-muted,_#6c757d) marginTop-16px marginBottom-4px display-block";
+            contentLabel.textContent = "Post Content (HTML allowed)";
+            card.appendChild(contentLabel);
+
+            const contentArea = document.createElement('textarea');
+            contentArea.className = "width-100% padding-12px border-1px_solid_var(--ec-border,_#dee2e6) borderRadius-8px fontSize-14px color-var(--ec-text,_#212529) boxSizing-border-box outline-none focus:borderColor-var(--ec-accent,_#1a73e8) minHeight-200px";
+            contentArea.placeholder = "Write your content here...";
+            card.appendChild(contentArea);
+
+            const btnContainer = document.createElement('div');
+            btnContainer.className = "marginTop-24px display-flex justifyContent-flex-end gap-12px";
+            
+            const publishBtn = new ECButton("Publish Post").onClick(async () => {
+                const title = titleInput.getValue();
+                const content = contentArea.value;
+
+                if (!title || !content) {
+                    new ECToast("Please fill in both fields.", { type: "warning" }).show();
+                    return;
+                }
+
+                publishBtn.disable();
+                publishBtn.setLabel("Publishing...");
+
+                try {
+                    // Update to your Render API URL
+                    const response = await fetch('https://isaiahnoelpulidosalazar-github-io.onrender.com/api/create-post', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ title, content, password: pwd })
+                    });
+
+                    const result = await response.json();
+                    if (result.success) {
+                        new ECToast("Success! Taking you to the post...", { type: "success" }).show();
+                        setTimeout(() => window.location.href = '../posts/' + result.url.split('/').pop(), 2000);
+                    } else {
+                        if (response.status === 401) {
+                            new ECToast("Unauthorized. Incorrect password.", { type: "error" }).show();
+                            localStorage.removeItem('admin_pwd');
+                            setTimeout(() => window.location.href = '../login/index.html', 1500);
+                        } else {
+                            new ECToast("Error: " + result.error, { type: "error" }).show();
+                            publishBtn.enable();
+                            publishBtn.setLabel("Publish Post");
+                        }
+                    }
+                } catch (err) {
+                    new ECToast("Connection failed. Is the server running?", { type: "error" }).show();
+                    publishBtn.enable();
+                    publishBtn.setLabel("Publish Post");
+                }
+            });
+
+            btnContainer.appendChild(publishBtn.element);
+            card.appendChild(btnContainer);
+
+            document.getElementById('app-container').appendChild(card);
         });
     </script>
 </body>
