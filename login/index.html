@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=7">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <meta http-equiv="Content-Type" content="text/html;charset=UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#F4F4F4">
+    <meta name="author" content="Isaiah Noel P. Salazar">
+    <link rel="apple-touch-icon" sizes="57x57" href="../apple-icon-57x57.png">
+    <link rel="apple-touch-icon" sizes="60x60" href="../apple-icon-60x60.png">
+    <link rel="apple-touch-icon" sizes="72x72" href="../apple-icon-72x72.png">
+    <link rel="apple-touch-icon" sizes="76x76" href="../apple-icon-76x76.png">
+    <link rel="apple-touch-icon" sizes="114x114" href="../apple-icon-114x114.png">
+    <link rel="apple-touch-icon" sizes="120x120" href="../apple-icon-120x120.png">
+    <link rel="apple-touch-icon" sizes="144x144" href="../apple-icon-144x144.png">
+    <link rel="apple-touch-icon" sizes="152x152" href="../apple-icon-152x152.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="../apple-icon-180x180.png">
+    <link rel="icon" type="image/png" sizes="192x192"  href="../android-icon-192x192.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="../favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="96x96" href="../favicon-96x96.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="../favicon-16x16.png">
+    <link rel="manifest" href="../manifest.json">
+    <meta name="msapplication-TileColor" content="#F4F4F4">
+    <meta name="msapplication-TileImage" content="../ms-icon-144x144.png">
+    <title>Login</title>
+    <script src="../js/ECStyleSheet.js"></script>
+    <script src="../js/ECElements.js"></script>
+</head>
+<body class="background-var(--ec-surface,_#f8f9fa) display-flex alignItems-center justifyContent-center height-100vh margin-0">
+    <div id="login-container" class="width-100% maxWidth-400px padding-20px boxSizing-border-box"></div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const card = document.createElement('div');
+            card.className = "background-var(--ec-bg,_#fff) padding-32px borderRadius-12px boxShadow-0_8px_24px_rgba(0,0,0,0.08) border-1px_solid_var(--ec-border,_#dee2e6)";
+            
+            const title = document.createElement('h1');
+            title.className = "marginTop-0 marginBottom-24px color-var(--ec-text,_#212529) textAlign-center fontSize-24px";
+            title.textContent = "Admin Login";
+            card.appendChild(title);
+
+            const passwordInput = new ECButton.ECTextbox ? new ECTextbox({ label: "Password", type: "password", placeholder: "Enter admin password" }) : new ECTextbox({ label: "Password", placeholder: "Enter admin password" });
+            
+            // Note: Since ECElements textboxes default to type="text", we manually set it to password
+            passwordInput._input.type = "password"; 
+            card.appendChild(passwordInput.element);
+
+            const spacer = document.createElement('div');
+            spacer.className = "height-24px";
+            card.appendChild(spacer);
+
+            const loginBtn = new ECButton("Login").onClick(() => {
+                const pwd = passwordInput.getValue();
+                if (!pwd) {
+                    new ECToast("Please enter a password", { type: "error" }).show();
+                    return;
+                }
+                
+                // Save password to local storage
+                localStorage.setItem('admin_pwd', pwd);
+                new ECToast("Success! Redirecting...", { type: "success" }).show();
+                
+                setTimeout(() => {
+                    window.location.href = '../newpost/index.html';
+                }, 1000);
+            });
+            loginBtn.element.classList.add("width-100%");
+            card.appendChild(loginBtn.element);
+
+            document.getElementById('login-container').appendChild(card);
+        });
+    </script>
+</body>
+</html>
