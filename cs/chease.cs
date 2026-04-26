@@ -3,15 +3,10 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 
-// current version - 1.1.0
+// current version - 1.2.0
 
 // changes:
-// - add variable types
-// - add comparison operators
-// - add conditions
-// - add loops
-// - add increment/decrement statements
-// - add arrays and dictionaries
+// - add note and note blocks for comments
 
 enum TokenType
 {
@@ -73,6 +68,27 @@ class Lexer
             {
                 string id = "";
                 while (_pos < _code.Length && char.IsLetterOrDigit(_code[_pos])) { id += _code[_pos++]; }
+
+                // --- NOTE / COMMENT LOGIC ---
+                if (id == "note")
+                {
+                    int peek = _pos;
+                    while (peek < _code.Length && char.IsWhiteSpace(_code[peek])) peek++;
+
+                    if (peek < _code.Length && _code[peek] == '[')
+                    {
+                        // Multi-line comment block
+                        _pos = peek + 1; // skip '['
+                        while (_pos < _code.Length && _code[_pos] != ']') _pos++;
+                        if (_pos < _code.Length) _pos++; // skip ']'
+                    }
+                    else
+                    {
+                        // Single-line comment
+                        while (_pos < _code.Length && _code[_pos] != '\n' && _code[_pos] != '\r') _pos++;
+                    }
+                    continue;
+                }
 
                 tokens.Add(id switch
                 {

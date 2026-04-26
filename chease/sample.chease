@@ -1,12 +1,20 @@
+note This is a sample code demonstrating the language features
+
 say "Enter your name:"
 var string name get
 
 say "Enter your age:"
 var number age get
 
+note[
+    Below we demonstrate increment 
+    by copying age over to nextAge
+    and adding 1 to it.
+]
 var number nextAge age
 increment nextAge 1
 
+note Demonstrating explicitly typed boolean and comparison
 var boolean isAdult age >= 18
 
 job greet person [
@@ -14,6 +22,7 @@ job greet person [
 ]
 
 job add a b[
+    note 'out' with a value acts as a return
     out a + b
 ]
 
@@ -23,6 +32,7 @@ job multiply a b[
 
 greet name
 
+note Demonstrating conditions
 if isAdult[
     say "You are an adult."
 ] else [
@@ -43,24 +53,32 @@ var number product multiply x, y
 say "Sum is " + sum
 say "Product is " + product
 
+note --- NEW FEATURES DEMONSTRATION ---
+
 say ""
 say "--- Arrays ---"
+note Creating an array of numbers
 array number myNumbers x, y, sum, product
 
+note Getting array length
 var number arrLen array length myNumbers
 say "Array length is: " + arrLen
 
+note Getting an array value
 var number firstItem array get myNumbers, 0
 say "First item in array is: " + firstItem
 
 
 say ""
 say "--- Dictionaries ---"
+note Creating a dictionary. Keys can be defined normally or as strings.
 dictionary userProfile name: name, age: age, "adult": isAdult
 
+note Getting dictionary length
 var number dictLen dictionary length userProfile
 say "Dictionary has " + dictLen + " entries."
 
+note Getting a value from a dictionary using a key
 var string dictName dictionary get key userProfile "name"
 say "Name fetched from dictionary: " + dictName
 
@@ -70,12 +88,17 @@ say "--- Loops & Loop Breaking ---"
 var number count 0
 say "Counting up to 3..."
 
+note[
+    Demonstrating 'repeat forever' and using 
+    'out' as a break statement.
+]
 repeat forever[
     increment count 1
     say count
     
     if count == 3[
         say "Reached 3! Breaking out of the loop..."
+        note 'out' without a value breaks the loop
         out
     ]
 ]
