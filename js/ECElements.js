@@ -194,7 +194,7 @@
   function ECButton(label, options) {
     options = options || {};
     this.element = document.createElement("button");
-    this.element.className = BASE_CLS + " display-inline-flex alignItems-center justifyContent-center padding-8px_18px borderRadius-8px border-none cursor-pointer fontSize-14px fontWeight-500 transition-background_0.15s_ease,_transform_0.1s_ease active:transform-scale(0.97) disabled:opacity-0.5 disabled:cursor-not-allowed";
+    this.element.className = BASE_CLS + " display-inline-flex ecbounce-2 alignItems-center justifyContent-center padding-8px_18px borderRadius-8px border-none cursor-pointer fontSize-14px fontWeight-500 transition-background_0.15s_ease,_transform_0.1s_ease active:transform-scale(0.97) disabled:opacity-0.5 disabled:cursor-not-allowed";
     this.element.textContent = label || "Button";
 
     applyBaseMixin(this);
