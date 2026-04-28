@@ -9,9 +9,7 @@ import android.view.View;
 import android.widget.Button;
 import android.widget.ScrollView;
 import android.widget.TextView;
-
 import androidx.appcompat.app.AlertDialog;
-
 import java.util.Objects;
 
 public class RoundedAlertDialog {
