@@ -1,0 +1,40 @@
+name: Build Android Dependency
+
+on:
+  push:
+    paths:
+      - 'android/**'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./android 
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+
+    - name: Set up JDK 17
+      uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+        cache: gradle
+
+    - name: Grant execute permission for gradlew
+      run: chmod +x gradlew
+
+    - name: Run Tests
+      run: ./gradlew test
+
+    - name: Build AAR file
+      run: ./gradlew assembleRelease
+
+    - name: Upload AAR Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: androiddependency-release-aar
+        path: android/androiddependency/build/outputs/aar/androiddependency-release.aar
