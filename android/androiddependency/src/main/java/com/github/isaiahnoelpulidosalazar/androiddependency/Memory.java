@@ -1,6 +1,5 @@
 package com.github.isaiahnoelpulidosalazar.androiddependency;
 
-@SuppressWarnings("unchecked")
 public class Memory<GenericType> {
     GenericType[] storage;
 

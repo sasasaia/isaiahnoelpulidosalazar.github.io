@@ -39,9 +39,9 @@ afterEvaluate {
                 from components.release
                 groupId = 'com.github.isaiahnoelpulidosalazar'
                 artifactId = 'androiddependency'
-                version = '1.0.0'
+                version = '1.0.1'
                 // changes:
-                // - Initial release
+                // - removed old comments from the original codebase
             }
         }
     }

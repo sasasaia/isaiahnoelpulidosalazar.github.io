@@ -1,0 +1,28 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "pythonbundle"
+version = "1.0.0"
+description = "PyPI package designed to make development in Python easier."
+readme = "README.md"
+authors = [
+    { name="Isaiah Noel Pulido Salazar", email="isaiahnoelpulidosalazar@gmail.com" }
+]
+dependencies = [
+    "openpyxl",
+    "unidecode"
+]
+requires-python = ">=3.8"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+
+[project.urls]
+Homepage = "https://github.com/isaiahnoelpulidosalazar/isaiahnoelpulidosalazar.github.io"
+
+[tool.hatch.build.targets.wheel]
+packages = ["pythonbundle"]
