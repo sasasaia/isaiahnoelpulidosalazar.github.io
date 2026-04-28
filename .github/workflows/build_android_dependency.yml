@@ -53,10 +53,15 @@ jobs:
         else
           echo "Creating new release androiddependency-v${{ env.VERSION }}"
           
+          RELEASE_NOTES="Auto-generated release.
+
+          Version: v${{ env.VERSION }}
+          Built from latest commit in android/."
+          
           # Creates the Tag, the Release page, and uploads the .aar file to it!
           gh release create "androiddependency-v${{ env.VERSION }}" \
             android/androiddependency/build/outputs/aar/androiddependency-release.aar \
             --title "androiddependency-v${{ env.VERSION }}" \
-            --notes "Automated release of androiddependency version ${{ env.VERSION }}" \
+            --notes "$RELEASE_NOTES" \
             --target ${{ github.sha }}
         fi
