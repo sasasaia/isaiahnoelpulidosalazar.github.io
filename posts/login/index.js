@@ -4,7 +4,7 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
     }
     let isLoginMode = true;
-    const API_URL = 'https://isaiahnoelpulidosalazar-github-io.onrender.com/api'; 
+    const API_URL = 'https://isaiahnoelpulidosalazar-github-io-posts.onrender.com/api'; 
     const card = document.createElement('div');
     card.className = "background-var(--ec-bg,_#fff) padding-32px borderRadius-12px boxShadow-0_8px_24px_rgba(0,0,0,0.08) border-1px_solid_var(--ec-border,_#dee2e6)";
     

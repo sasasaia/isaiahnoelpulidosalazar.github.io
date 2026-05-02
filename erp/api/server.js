@@ -131,7 +131,6 @@ app.post('/api/companies', requireAuth, async (req, res) => {
 
         const hash = await bcrypt.hash(adminPassword, 10);
         
-        // Insert company, get its ID, then insert the CompanyAdmin account dynamically linked to it
         const compRes = await pool.request()
             .input('n', sql.NVarChar, name)
             .input('t', sql.NVarChar, type)

@@ -64,7 +64,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!title || !content) return new ECToast("Please fill in both fields.", { type: "warning" }).show();
         publishBtn.disable().setLabel("Publishing...");
         try {
-            const response = await fetch('https://isaiahnoelpulidosalazar-github-io.onrender.com/api/create-post', {
+            const response = await fetch('https://isaiahnoelpulidosalazar-github-io-posts.onrender.com/api/create-post', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
                 body: JSON.stringify({ title, content })
