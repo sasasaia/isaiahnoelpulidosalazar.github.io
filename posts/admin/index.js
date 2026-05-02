@@ -10,7 +10,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         window.location.href = '../newpost/';
         return;
     }
-    const API_URL = 'https://isaiahnoelpulidosalazar-github-io.onrender.com/api';
+    const API_URL = 'https://isaiahnoelpulidosalazar-github-io-posts.onrender.com/api';
     const card = document.createElement('div');
     card.className = "background-var(--ec-bg,_#fff) margin-0_16px padding-32px borderRadius-12px boxShadow-0_4px_16px_rgba(0,0,0,0.05) border-1px_solid_var(--ec-border,_#dee2e6)";
     
