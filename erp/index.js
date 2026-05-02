@@ -86,10 +86,12 @@ function renderMainApp() {
         localStorage.clear(); initApp();
     });
     
+    const sidebar = new ECSidebar("Modules");
+
     const sidebarToggle = new ECButton("☰ Menu", {variant: "white"}).onClick(() => sidebar.open());
     topbar.addAction(logoutBtn);
+    topbar.addAction(sidebarToggle);
 
-    const sidebar = new ECSidebar("Modules");
     const navList = new ECList({ variant: "hoverable" });
     
     const modules =[
