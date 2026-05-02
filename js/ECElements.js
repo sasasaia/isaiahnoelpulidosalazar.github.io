@@ -2706,6 +2706,7 @@
   window.ECFileUpload = ECFileUpload;
   window.ECRating = ECRating;
   window.ECMediaCard = ECMediaCard;
+  window.ECBasicCard = ECBasicCard;
   window.ECHero = ECHero;
   window.ECTreeView = ECTreeView;
   window.ECIndicator = ECIndicator;
