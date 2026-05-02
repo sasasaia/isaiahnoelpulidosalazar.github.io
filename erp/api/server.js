@@ -20,153 +20,136 @@ const dbConfig = {
 
 async function initErpDB() {
     try {
-        await sql.connect(dbConfig);
-        await sql.query(`
+        const pool = await sql.connect(dbConfig);
+        await pool.query(`
             IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='ErpCompanies' and xtype='U')
-            BEGIN
-                CREATE TABLE ErpCompanies (
-                    Id INT IDENTITY(1,1) PRIMARY KEY,
-                    Name NVARCHAR(100) NOT NULL,
-                    Type NVARCHAR(50) NOT NULL
-                )
-            END
+            CREATE TABLE ErpCompanies (Id INT IDENTITY(1,1) PRIMARY KEY, Name NVARCHAR(100), Type NVARCHAR(50));
 
             IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='ErpUsers' and xtype='U')
-            BEGIN
-                CREATE TABLE ErpUsers (
-                    Id INT IDENTITY(1,1) PRIMARY KEY,
-                    Username NVARCHAR(50) UNIQUE NOT NULL,
-                    PasswordHash NVARCHAR(255) NOT NULL,
-                    Role NVARCHAR(20) NOT NULL,
-                    CompanyId INT NULL FOREIGN KEY REFERENCES ErpCompanies(Id),
-                    IsActive BIT NOT NULL DEFAULT 1
-                )
-            END
+            CREATE TABLE ErpUsers (Id INT IDENTITY(1,1) PRIMARY KEY, Username NVARCHAR(50) UNIQUE, PasswordHash NVARCHAR(255), Role NVARCHAR(20), CompanyId INT NULL FOREIGN KEY REFERENCES ErpCompanies(Id), IsActive BIT DEFAULT 1);
+
+            IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='ErpInventory' and xtype='U')
+            CREATE TABLE ErpInventory (Id INT IDENTITY(1,1) PRIMARY KEY, CompanyId INT, ItemName NVARCHAR(100), SKU NVARCHAR(50), Quantity INT, Price DECIMAL(18,2));
+
+            IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='ErpSales' and xtype='U')
+            CREATE TABLE ErpSales (Id INT IDENTITY(1,1) PRIMARY KEY, CompanyId INT, Customer NVARCHAR(100), Amount DECIMAL(18,2), Status NVARCHAR(50), OrderDate DATETIME DEFAULT GETDATE());
+
+            IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='ErpEmployees' and xtype='U')
+            CREATE TABLE ErpEmployees (Id INT IDENTITY(1,1) PRIMARY KEY, CompanyId INT, EmployeeName NVARCHAR(100), Position NVARCHAR(100), ComplianceStatus NVARCHAR(50), Salary DECIMAL(18,2));
+
+            IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='ErpSchedules' and xtype='U')
+            CREATE TABLE ErpSchedules (Id INT IDENTITY(1,1) PRIMARY KEY, CompanyId INT, EmployeeName NVARCHAR(100), ShiftStart DATETIME, ShiftEnd DATETIME, Status NVARCHAR(50));
+
+            IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='ErpTransactions' and xtype='U')
+            CREATE TABLE ErpTransactions (Id INT IDENTITY(1,1) PRIMARY KEY, CompanyId INT, Type NVARCHAR(50), Description NVARCHAR(200), Amount DECIMAL(18,2), TxDate DATETIME DEFAULT GETDATE());
+
+            IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='ErpChat' and xtype='U')
+            CREATE TABLE ErpChat (Id INT IDENTITY(1,1) PRIMARY KEY, CompanyId INT NULL, Sender NVARCHAR(50), Message NVARCHAR(MAX), IsGlobal BIT, Timestamp DATETIME DEFAULT GETDATE());
         `);
-        console.log("Line ERP Database tables are ready.");
-    } catch (err) {
-        console.error("Line ERP Database Connection Failed:", err.message);
-    }
+        console.log("Line ERP Advanced Tables Initialized.");
+    } catch (err) { console.error("DB Error:", err.message); }
 }
 initErpDB();
 
+const requireAuth = (req, res, next) => {
+    const token = req.headers.authorization?.split(' ')[1];
+    if (!token) return res.status(401).json({ error: "Missing token" });
+    try { req.user = jwt.verify(token, process.env.JWT_SECRET || 'secret'); next(); } 
+    catch (err) { res.status(401).json({ error: "Session expired" }); }
+};
+
 app.get('/api/check-setup', async (req, res) => {
-    try {
-        const pool = await sql.connect(dbConfig);
-        const result = await pool.request().query("SELECT COUNT(*) as count FROM ErpUsers");
-        res.json({ success: true, isSetup: result.recordset[0].count > 0 });
-    } catch (err) { res.status(500).json({ success: false, error: err.message }); }
+    const pool = await sql.connect(dbConfig);
+    const r = await pool.request().query("SELECT COUNT(*) as c FROM ErpUsers");
+    res.json({ isSetup: r.recordset[0].c > 0 });
 });
 
 app.post('/api/setup', async (req, res) => {
-    const { username, password } = req.body;
-    try {
-        const pool = await sql.connect(dbConfig);
-        const check = await pool.request().query("SELECT COUNT(*) as count FROM ErpUsers");
-        if (check.recordset[0].count > 0) return res.status(400).json({ success: false, error: "System already initialized." });
-
-        const hash = await bcrypt.hash(password, 10);
-        await pool.request()
-            .input('u', sql.NVarChar, username)
-            .input('h', sql.NVarChar, hash)
-            .input('r', sql.NVarChar, 'SuperAdmin')
-            .query("INSERT INTO ErpUsers (Username, PasswordHash, Role) VALUES (@u, @h, @r)");
-        res.json({ success: true });
-    } catch (err) { res.status(500).json({ success: false, error: err.message }); }
+    const pool = await sql.connect(dbConfig);
+    const hash = await bcrypt.hash(req.body.password, 10);
+    await pool.request().input('u', req.body.username).input('h', hash)
+        .query("INSERT INTO ErpUsers (Username, PasswordHash, Role) VALUES (@u, @h, 'SuperAdmin')");
+    res.json({ success: true });
 });
 
 app.post('/api/login', async (req, res) => {
-    const { username, password } = req.body;
-    try {
-        const pool = await sql.connect(dbConfig);
-        const result = await pool.request().input('u', sql.NVarChar, username).query("SELECT * FROM ErpUsers WHERE Username = @u");
-        if (result.recordset.length === 0) return res.status(401).json({ success: false, error: "Invalid credentials." });
-        
-        const user = result.recordset[0];
-        if (!user.IsActive) return res.status(403).json({ success: false, error: "Account disabled." });
-
-        const isMatch = await bcrypt.compare(password, user.PasswordHash);
-        if (!isMatch) return res.status(401).json({ success: false, error: "Invalid credentials." });
-
-        const token = jwt.sign(
-            { userId: user.Id, username: user.Username, role: user.Role, companyId: user.CompanyId }, 
-            process.env.JWT_SECRET || 'fallback-secret', 
-            { expiresIn: '24h' }
-        );
-        res.json({ success: true, token, role: user.Role, username: user.Username, companyId: user.CompanyId });
-    } catch (err) { res.status(500).json({ success: false, error: err.message }); }
+    const pool = await sql.connect(dbConfig);
+    const r = await pool.request().input('u', req.body.username).query("SELECT * FROM ErpUsers WHERE Username=@u");
+    if (r.recordset.length === 0 || !(await bcrypt.compare(req.body.password, r.recordset[0].PasswordHash))) 
+        return res.status(401).json({ error: "Invalid credentials" });
+    
+    const user = r.recordset[0];
+    const token = jwt.sign({ id: user.Id, username: user.Username, role: user.Role, companyId: user.CompanyId }, process.env.JWT_SECRET || 'secret', { expiresIn: '24h' });
+    res.json({ token, role: user.Role, username: user.Username, companyId: user.CompanyId });
 });
-
-const requireAuth = (req, res, next) => {
-    const token = req.headers.authorization?.split(' ')[1];
-    if (!token) return res.status(401).json({ success: false, error: "Missing token" });
-    try {
-        req.user = jwt.verify(token, process.env.JWT_SECRET || 'fallback-secret');
-        next();
-    } catch (err) { res.status(401).json({ success: false, error: "Session expired" }); }
-};
 
 app.get('/api/dashboard', requireAuth, async (req, res) => {
-    try {
-        const pool = await sql.connect(dbConfig);
-        if (req.user.role === 'SuperAdmin') {
-            const companies = await pool.request().query("SELECT * FROM ErpCompanies");
-            const users = await pool.request().query("SELECT Username, Role FROM ErpUsers WHERE Role != 'SuperAdmin'");
-            res.json({ success: true, companies: companies.recordset, users: users.recordset });
-        } else {
-            const companyRes = await pool.request().input('cId', sql.Int, req.user.companyId).query("SELECT * FROM ErpCompanies WHERE Id = @cId");
-            const usersRes = await pool.request().input('cId', sql.Int, req.user.companyId).query("SELECT Username, Role FROM ErpUsers WHERE CompanyId = @cId");
-            res.json({ success: true, company: companyRes.recordset[0], users: usersRes.recordset });
-        }
-    } catch (err) { res.status(500).json({ success: false, error: err.message }); }
+    const pool = await sql.connect(dbConfig);
+    if (req.user.role === 'SuperAdmin') {
+        const c = await pool.request().query("SELECT * FROM ErpCompanies");
+        res.json({ type: 'super', companies: c.recordset });
+    } else {
+        const sales = await pool.request().input('c', req.user.companyId).query("SELECT SUM(Amount) as Total FROM ErpSales WHERE CompanyId=@c");
+        const inv = await pool.request().input('c', req.user.companyId).query("SELECT COUNT(*) as Total FROM ErpInventory WHERE CompanyId=@c");
+        res.json({ type: 'company', sales: sales.recordset[0].Total || 0, inventoryCount: inv.recordset[0].Total || 0 });
+    }
 });
 
-app.post('/api/companies', requireAuth, async (req, res) => {
-    if (req.user.role !== 'SuperAdmin') return res.status(403).json({ error: "Access denied." });
-    const { name, type, adminUsername, adminPassword } = req.body;
-    try {
-        const pool = await sql.connect(dbConfig);
-        const check = await pool.request().input('u', sql.NVarChar, adminUsername).query("SELECT Id FROM ErpUsers WHERE Username = @u");
-        if (check.recordset.length > 0) return res.status(400).json({ error: "Username already taken." });
-
-        const hash = await bcrypt.hash(adminPassword, 10);
-        
-        const compRes = await pool.request()
-            .input('n', sql.NVarChar, name)
-            .input('t', sql.NVarChar, type)
-            .query("INSERT INTO ErpCompanies (Name, Type) OUTPUT INSERTED.Id VALUES (@n, @t)");
-        const newCompanyId = compRes.recordset[0].Id;
-
-        await pool.request()
-            .input('u', sql.NVarChar, adminUsername)
-            .input('h', sql.NVarChar, hash)
-            .input('r', sql.NVarChar, 'CompanyAdmin')
-            .input('c', sql.Int, newCompanyId)
-            .query("INSERT INTO ErpUsers (Username, PasswordHash, Role, CompanyId) VALUES (@u, @h, @r, @c)");
-            
-        res.json({ success: true });
-    } catch (err) { res.status(500).json({ success: false, error: err.message }); }
+app.get('/api/chat', requireAuth, async (req, res) => {
+    const isGlobal = req.query.global === 'true';
+    const pool = await sql.connect(dbConfig);
+    let q = "SELECT TOP 50 Sender, Message, Timestamp FROM ErpChat WHERE IsGlobal=1 ORDER BY Timestamp ASC";
+    if (!isGlobal && req.user.companyId) {
+        q = `SELECT TOP 50 Sender, Message, Timestamp FROM ErpChat WHERE IsGlobal=0 AND CompanyId=${req.user.companyId} ORDER BY Timestamp ASC`;
+    }
+    const r = await pool.request().query(q);
+    res.json(r.recordset);
 });
 
-app.post('/api/users', requireAuth, async (req, res) => {
-    if (req.user.role !== 'CompanyAdmin') return res.status(403).json({ error: "Access denied." });
-    const { username, password, role } = req.body;
-    try {
-        const pool = await sql.connect(dbConfig);
-        const check = await pool.request().input('u', sql.NVarChar, username).query("SELECT Id FROM ErpUsers WHERE Username = @u");
-        if (check.recordset.length > 0) return res.status(400).json({ error: "Username already taken." });
-
-        const hash = await bcrypt.hash(password, 10);
-        await pool.request()
-            .input('u', sql.NVarChar, username)
-            .input('h', sql.NVarChar, hash)
-            .input('r', sql.NVarChar, role || 'Employee')
-            .input('c', sql.Int, req.user.companyId)
-            .query("INSERT INTO ErpUsers (Username, PasswordHash, Role, CompanyId) VALUES (@u, @h, @r, @c)");
-            
-        res.json({ success: true });
-    } catch (err) { res.status(500).json({ success: false, error: err.message }); }
+app.post('/api/chat', requireAuth, async (req, res) => {
+    const isGlobal = req.body.global === true;
+    const pool = await sql.connect(dbConfig);
+    await pool.request()
+        .input('c', isGlobal ? null : req.user.companyId)
+        .input('s', req.user.username)
+        .input('m', req.body.message)
+        .input('g', isGlobal ? 1 : 0)
+        .query("INSERT INTO ErpChat (CompanyId, Sender, Message, IsGlobal) VALUES (@c, @s, @m, @g)");
+    res.json({ success: true });
 });
 
-const PORT = process.env.ERP_PORT || 3001;
-app.listen(PORT, () => console.log(`Line ERP Server running on port ${PORT}`));
+const TABLES = {
+    inventory: 'ErpInventory',
+    sales: 'ErpSales',
+    employees: 'ErpEmployees',
+    schedules: 'ErpSchedules',
+    finance: 'ErpTransactions'
+};
+
+app.get('/api/data/:module', requireAuth, async (req, res) => {
+    const table = TABLES[req.params.module];
+    if (!table) return res.status(400).json({ error: "Invalid module" });
+    const pool = await sql.connect(dbConfig);
+    const r = await pool.request().input('c', req.user.companyId).query(`SELECT * FROM ${table} WHERE CompanyId=@c ORDER BY Id DESC`);
+    res.json(r.recordset);
+});
+
+app.post('/api/data/:module', requireAuth, async (req, res) => {
+    const table = TABLES[req.params.module];
+    if (!table) return res.status(400).json({ error: "Invalid module" });
+    
+    const fields = Object.keys(req.body);
+    const values = Object.values(req.body);
+    
+    const cols = ['CompanyId', ...fields].join(', ');
+    const params =['@c', ...fields.map((_, i) => `@p${i}`)].join(', ');
+
+    const pool = await sql.connect(dbConfig);
+    const reqObj = pool.request().input('c', sql.Int, req.user.companyId);
+    values.forEach((v, i) => reqObj.input(`p${i}`, v));
+
+    await reqObj.query(`INSERT INTO ${table} (${cols}) VALUES (${params})`);
+    res.json({ success: true });
+});
+
+app.listen(process.env.ERP_PORT || 3001, () => console.log(`Line ERP Server running on port ${process.env.ERP_PORT || 3001}`));
