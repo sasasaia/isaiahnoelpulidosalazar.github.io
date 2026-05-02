@@ -1,4 +1,7 @@
 const API_BASE = 'https://isaiahnoelpulidosalazar-github-io-erp.onrender.com/api';
+let THEME = ECTheme.Blue;
+
+let loaderModal = new ECModal("Loading...").setContent(new ECSpinner({size: "lg"}).element);
 
 async function apiCall(endpoint, method = 'GET', body = null) {
     const token = localStorage.getItem('erp_token');
@@ -8,219 +11,215 @@ async function apiCall(endpoint, method = 'GET', body = null) {
     const options = { method, headers };
     if (body) options.body = JSON.stringify(body);
     
-    const res = await fetch(`${API_BASE}${endpoint}`, options);
-    return await res.json();
-}
-
-function setView(html) {
-    document.getElementById('content-container').innerHTML = html;
-    if (window.ECStyleSheet) window.ECStyleSheet.scan();
-    
-    const token = localStorage.getItem('erp_token');
-    const navUser = document.getElementById('nav-user');
-    if (token) {
-        navUser.classList.remove('display-none');
-        navUser.classList.add('display-flex');
-        document.getElementById('nav-username').textContent = `${localStorage.getItem('erp_username')} (${localStorage.getItem('erp_role')})`;
-    } else {
-        navUser.classList.add('display-none');
-        navUser.classList.remove('display-flex');
+    try {
+        const res = await fetch(`${API_BASE}${endpoint}`, options);
+        return await res.json();
+    } catch (e) {
+        new ECToast("Network Error", {type: "error"}).show();
+        return { error: "Network Error" };
     }
-}
-
-function logout() {
-    localStorage.clear();
-    initApp();
 }
 
 async function initApp() {
     const setupRes = await apiCall('/check-setup');
-    if (!setupRes.isSetup) return setView(renderSetup());
-    
-    if (localStorage.getItem('erp_token')) {
-        loadDashboard();
-    } else {
-        setView(renderLogin());
-    }
+    if (!setupRes.isSetup) return renderSetup();
+    if (localStorage.getItem('erp_token')) return renderMainApp();
+    renderLogin();
 }
 
-async function loadDashboard() {
-    const res = await apiCall('/dashboard');
-    if (!res.success) return logout();
-
-    const role = localStorage.getItem('erp_role');
-    let viewHtml = '';
-    
-    if (res.company) {
-        viewHtml += `
-        <div class="marginBottom-24px display-flex alignItems-center gap-16px">
-            <div class="background-#e2e8f0 padding-16px borderRadius-12px fontSize-24px">🏢</div>
-            <div>
-                <h2 class="margin-0 fontSize-24px color-#0f172a">${res.company.Name} Workspace</h2>
-                <span class="fontSize-14px color-#64748b">${res.company.Type} Industry</span>
-            </div>
-        </div>`;
-    } else if (role === 'SuperAdmin') {
-        viewHtml += `<h2 class="marginBottom-24px fontSize-28px color-#0f172a">Line ERP Global Administrator</h2>`;
-    }
-
-    if (role === 'SuperAdmin') viewHtml += renderSuperAdmin(res);
-    else if (role === 'CompanyAdmin') viewHtml += renderCompanyAdmin(res);
-    else viewHtml += renderEmployee();
-
-    setView(viewHtml);
+function clearRoot() {
+    document.getElementById('app-root').innerHTML = '';
 }
 
 function renderSetup() {
-    return `
-    <div class="display-flex justifyContent-center">
-        <div class="eccard padding-32px width-100% maxWidth-400px display-flex flexDirection-column gap-16px">
-            <h2 class="margin-0 fontSize-24px">Welcome to Line ERP</h2>
-            <p class="margin-0 color-#64748b fontSize-14px">Set up your global master administrator account.</p>
-            <input id="setup-user" placeholder="SuperAdmin Username" class="padding-12px border-1px_solid_#cbd5e1 borderRadius-6px fontSize-16px outline-none" />
-            <input id="setup-pass" type="password" placeholder="Password" class="padding-12px border-1px_solid_#cbd5e1 borderRadius-6px fontSize-16px outline-none" />
-            <button onclick="handleSetup()" class="background-#10b981 color-#ffffff border-none padding-12px borderRadius-6px cursor-pointer hover:background-#059669 transition-0.2s fontWeight-bold fontSize-16px">Initialize ERP</button>
-        </div>
-    </div>`;
+    clearRoot();
+    const hero = new ECHero({
+        title: "Initialize Line ERP",
+        subtitle: "Create the global super administrator account to begin.",
+        eyebrow: "SYSTEM SETUP"
+    });
+
+    const box = new ECBasicCard();
+    const user = new ECTextbox({placeholder: "Admin Username"});
+    const pass = new ECTextbox({placeholder: "Password", type: "password"});
+    const btn = new ECButton("Setup System").onClick(async () => {
+        const res = await apiCall('/setup', 'POST', { username: user.getValue(), password: pass.getValue() });
+        if (res.success) { new ECToast("Setup Complete!", {type: "success"}).show(); initApp(); }
+    });
+
+    box.append(user).append(pass).append(btn);
+    hero.element.appendChild(box.element);
+    document.getElementById('app-root').appendChild(hero.element);
 }
 
 function renderLogin() {
-    return `
-    <div class="display-flex justifyContent-center">
-        <div class="eccard padding-32px width-100% maxWidth-400px display-flex flexDirection-column gap-16px">
-            <h2 class="margin-0 fontSize-24px textAlignCenter">Account Login</h2>
-            <input id="login-user" placeholder="Username" class="padding-12px border-1px_solid_#cbd5e1 borderRadius-6px fontSize-16px outline-none" />
-            <input id="login-pass" type="password" placeholder="Password" class="padding-12px border-1px_solid_#cbd5e1 borderRadius-6px fontSize-16px outline-none" />
-            <button onclick="handleLogin()" class="background-#3b82f6 color-#ffffff border-none padding-12px borderRadius-6px cursor-pointer hover:background-#2563eb transition-0.2s fontWeight-bold fontSize-16px">Secure Login</button>
-        </div>
-    </div>`;
-}
-
-function renderSuperAdmin(data) {
-    return `
-    <div class="ecgrid-2x2 gap-24px">
-        <div class="eccard padding-24px display-flex flexDirection-column gap-16px">
-            <h2 class="margin-0 fontSize-18px borderBottom-1px_solid_#e2e8f0 paddingBottom-12px">Register New Company & Admin</h2>
-            <input id="c-name" placeholder="Tenant Company Name" class="padding-10px border-1px_solid_#cbd5e1 borderRadius-6px fontSize-14px" />
-            <select id="c-type" class="padding-10px border-1px_solid_#cbd5e1 borderRadius-6px fontSize-14px">
-                <option value="Manufacturing">Manufacturing</option>
-                <option value="Retail">Retail</option>
-                <option value="Services">Services</option>
-                <option value="Tech">Tech / Software</option>
-            </select>
-            <input id="c-admin" placeholder="Company Admin Username" class="padding-10px border-1px_solid_#cbd5e1 borderRadius-6px fontSize-14px" />
-            <input id="c-pass" type="password" placeholder="Admin Temporary Password" class="padding-10px border-1px_solid_#cbd5e1 borderRadius-6px fontSize-14px" />
-            <button onclick="createCompany()" class="background-#10b981 color-#ffffff border-none padding-12px borderRadius-6px cursor-pointer hover:background-#059669 transition-0.2s fontWeight-bold">Register Tenant</button>
-        </div>
-        <div class="eccard padding-24px display-flex flexDirection-column gap-16px">
-            <h2 class="margin-0 fontSize-18px borderBottom-1px_solid_#e2e8f0 paddingBottom-12px">Active ERP Tenants</h2>
-            <div class="display-flex flexDirection-column gap-12px overflowY-auto maxHeight-400px">
-                ${data.companies.map(c => `
-                    <div class="padding-16px border-1px_solid_#e2e8f0 borderRadius-8px background-#f8fafc display-flex justifyContent-space-between alignItems-center">
-                        <div>
-                            <div class="fontWeight-bold color-#1e293b">${c.Name}</div>
-                            <div class="fontSize-12px color-#64748b marginTop-4px">${c.Type}</div>
-                        </div>
-                        <div class="background-#dbeafe color-#1e40af padding-4px_8px borderRadius-4px fontSize-12px fontWeight-bold">Active</div>
-                    </div>
-                `).join('')}
-                ${data.companies.length === 0 ? `<span class="color-#94a3b8">No tenants established.</span>` : ''}
-            </div>
-        </div>
-    </div>`;
-}
-
-function renderCompanyAdmin(data) {
-    return `
-    <div class="ecgrid-2x2 gap-24px">
-        <div class="eccard padding-24px display-flex flexDirection-column gap-16px">
-            <h2 class="margin-0 fontSize-18px borderBottom-1px_solid_#e2e8f0 paddingBottom-12px">Onboard Employee</h2>
-            <input id="e-user" placeholder="Employee Username" class="padding-10px border-1px_solid_#cbd5e1 borderRadius-6px fontSize-14px" />
-            <input id="e-pass" type="password" placeholder="Temporary Password" class="padding-10px border-1px_solid_#cbd5e1 borderRadius-6px fontSize-14px" />
-            <select id="e-role" class="padding-10px border-1px_solid_#cbd5e1 borderRadius-6px fontSize-14px">
-                <option value="Employee">Standard Employee</option>
-                <option value="Manager">Department Manager</option>
-            </select>
-            <button onclick="createEmployee()" class="background-#3b82f6 color-#ffffff border-none padding-12px borderRadius-6px cursor-pointer hover:background-#2563eb transition-0.2s fontWeight-bold">Add Staff</button>
-        </div>
-        <div class="eccard padding-24px display-flex flexDirection-column gap-16px">
-            <h2 class="margin-0 fontSize-18px borderBottom-1px_solid_#e2e8f0 paddingBottom-12px">Corporate Roster</h2>
-            <div class="display-flex flexDirection-column gap-12px">
-                ${data.users.map(u => `
-                    <div class="padding-12px border-1px_solid_#e2e8f0 borderRadius-8px display-flex justifyContent-space-between alignItems-center">
-                        <span class="fontWeight-500">${u.Username}</span>
-                        <span class="fontSize-12px background-#f1f5f9 color-#475569 padding-4px_8px borderRadius-4px">${u.Role}</span>
-                    </div>
-                `).join('')}
-            </div>
-        </div>
-    </div>`;
-}
-
-function renderEmployee() {
-    return `
-    <div class="eccard padding-48px display-flex flexDirection-column alignItems-center justifyContent-center textAlignCenter">
-        <h2 class="fontSize-28px color-#1e293b margin-0">Your Work Portal is Ready</h2>
-        <p class="color-#64748b marginTop-16px maxWidth-600px lineHeight-1.6">Welcome to your assigned workspace. Module deployments configured for your industry (Payroll, Tasks, Logistics) will surface here shortly.</p>
-        <div class="marginTop-32px display-flex gap-16px">
-            <div class="padding-24px background-#f8fafc border-1px_solid_#e2e8f0 borderRadius-8px cursor-pointer hover:borderColor-#3b82f6 transition-0.2s">
-                <div class="fontSize-24px marginBottom-8px">📅</div>
-                <div class="fontWeight-500 color-#334155">Shifts</div>
-            </div>
-            <div class="padding-24px background-#f8fafc border-1px_solid_#e2e8f0 borderRadius-8px cursor-pointer hover:borderColor-#3b82f6 transition-0.2s">
-                <div class="fontSize-24px marginBottom-8px">📝</div>
-                <div class="fontWeight-500 color-#334155">Tasks</div>
-            </div>
-        </div>
-    </div>`;
-}
-
-async function handleSetup() {
-    const user = document.getElementById('setup-user').value;
-    const pass = document.getElementById('setup-pass').value;
-    if (!user || !pass) return alert("Fill all fields");
-    const res = await apiCall('/setup', 'POST', { username: user, password: pass });
-    if (res.success) { alert("Initialization complete. Please login."); initApp(); }
-    else alert("Error: " + res.error);
-}
-
-async function handleLogin() {
-    const user = document.getElementById('login-user').value;
-    const pass = document.getElementById('login-pass').value;
-    const res = await apiCall('/login', 'POST', { username: user, password: pass });
-    if (res.success) {
-        localStorage.setItem('erp_token', res.token);
-        localStorage.setItem('erp_username', res.username);
-        localStorage.setItem('erp_role', res.role);
-        initApp();
-    } else alert(res.error);
-}
-
-async function createCompany() {
-    const payload = {
-        name: document.getElementById('c-name').value,
-        type: document.getElementById('c-type').value,
-        adminUsername: document.getElementById('c-admin').value,
-        adminPassword: document.getElementById('c-pass').value
-    };
-    if (Object.values(payload).some(x => !x)) return alert("Fill all fields");
+    clearRoot();
+    const hero = new ECHero({ title: "Line ERP Login", eyebrow: "WELCOME BACK" });
+    const box = new ECBasicCard();
+    const user = new ECTextbox({placeholder: "Username"});
+    const pass = new ECTextbox({placeholder: "Password", type: "password"});
     
-    const res = await apiCall('/companies', 'POST', payload);
-    if (res.success) { alert("Tenant created."); loadDashboard(); }
-    else alert(res.error);
+    const btn = new ECButton("Login", {variant: "filled"}).onClick(async () => {
+        const res = await apiCall('/login', 'POST', { username: user.getValue(), password: pass.getValue() });
+        if (res.token) {
+            localStorage.setItem('erp_token', res.token);
+            localStorage.setItem('erp_role', res.role);
+            new ECToast("Login Successful", {type: "success"}).show();
+            initApp();
+        } else {
+            new ECToast(res.error || "Login Failed", {type: "error"}).show();
+        }
+    });
+
+    box.append(user).append(pass).append(btn);
+    hero.element.appendChild(box.element);
+    document.getElementById('app-root').appendChild(hero.element);
 }
 
-async function createEmployee() {
-    const payload = {
-        username: document.getElementById('e-user').value,
-        password: document.getElementById('e-pass').value,
-        role: document.getElementById('e-role').value
-    };
-    if (!payload.username || !payload.password) return alert("Fill all fields");
+let contentArea;
+function renderMainApp() {
+    clearRoot();
+    const root = document.getElementById('app-root');
+    
+    const topbar = new ECTopbar("Line ERP Workspace");
+    const logoutBtn = new ECButton("Logout", {variant: "outline"}).onClick(() => {
+        localStorage.clear(); initApp();
+    });
+    
+    const sidebarToggle = new ECButton("☰ Menu", {variant: "white"}).onClick(() => sidebar.open());
+    topbar.addAction(logoutBtn);
 
-    const res = await apiCall('/users', 'POST', payload);
-    if (res.success) { alert("Employee added."); loadDashboard(); }
-    else alert(res.error);
+    const sidebar = new ECSidebar("Modules");
+    const navList = new ECList({ variant: "hoverable" });
+    
+    const modules =[
+        { name: "📊 Dashboard", view: renderDashboard },
+        { name: "💬 Communications", view: renderChat },
+        { name: "📦 Inventory & Logistics", view: () => renderCRUD('inventory', 'Inventory Management',[{key:'ItemName', label:'Item Name'}, {key:'SKU'}, {key:'Quantity'}, {key:'Price'}]) },
+        { name: "📈 Sales & Customers", view: () => renderCRUD('sales', 'Sales Orders',[{key:'Customer'}, {key:'Amount'}, {key:'Status', render: (v) => new ECBadge(v, v==='Paid'?'success':'warning').element }]) },
+        { name: "👥 HR & Compliance", view: () => renderCRUD('employees', 'Employee Roster',[{key:'EmployeeName'}, {key:'Position'}, {key:'ComplianceStatus'}, {key:'Salary'}]) },
+        { name: "📅 Schedule Tracker", view: () => renderCRUD('schedules', 'Shift Schedules',[{key:'EmployeeName'}, {key:'ShiftStart'}, {key:'ShiftEnd'}, {key:'Status'}]) },
+        { name: "💰 Finance & Accounting", view: () => renderCRUD('finance', 'Transactions & Payroll',[{key:'Type'}, {key:'Description'}, {key:'Amount'}, {key:'TxDate'}]) }
+    ];
+
+    modules.forEach(m => navList.addItem(m.name, () => { loadView(m.view); sidebar.close(); }));
+    sidebar.addContent(navList.element);
+
+    contentArea = document.createElement('div');
+    contentArea.className = "flexGrow-1 padding-80px_24px_24px_24px width-100% boxSizing-border-box overflowY-auto";
+    
+    root.appendChild(topbar.element);
+    root.appendChild(sidebar.element);
+    root.appendChild(contentArea);
+
+    loadView(renderDashboard);
+}
+
+function loadView(viewFunc) {
+    contentArea.innerHTML = '';
+    viewFunc(contentArea);
+    if(window.ECStyleSheet) window.ECStyleSheet.scan();
+}
+
+async function renderDashboard(container) {
+    const res = await apiCall('/dashboard');
+    const grid = new ECGrid({columns: 3});
+    
+    if (res.type === 'company') {
+        grid.addItem(new ECBasicCard(`<h3 class="margin-0 color-var(--ec-text-muted,_#6c757d)">Total Sales</h3><p class="fontSize-32px fontWeight-bold margin-10px_0">$${res.sales.toFixed(2)}</p>`));
+        grid.addItem(new ECBasicCard(`<h3 class="margin-0 color-var(--ec-text-muted,_#6c757d)">Inventory Items</h3><p class="fontSize-32px fontWeight-bold margin-10px_0">${res.inventoryCount}</p>`));
+        grid.addItem(new ECBasicCard(`<h3 class="margin-0 color-var(--ec-text-muted,_#6c757d)">System Status</h3><p class="fontSize-18px fontWeight-bold margin-10px_0 color-#2e7d32">All Modules Online</p>`));
+    } else {
+        grid.addItem(new ECBasicCard(`<h3>SuperAdmin Hub</h3><p>Active Tenants: ${res.companies.length}</p>`));
+    }
+    
+    container.appendChild(grid.element);
+}
+
+function renderChat(container) {
+    const isGlobal = new ECToggle("Global Chat Mode", false);
+    const chatBox = document.createElement('div');
+    chatBox.className = "height-400px overflowY-auto border-1px_solid_var(--ec-border,_#dee2e6) padding-16px borderRadius-8px background-#fff marginBottom-16px display-flex flexDirection-column gap-12px";
+    
+    const input = new ECTextbox({placeholder: "Type a message..."});
+    
+    const loadChats = async () => {
+        chatBox.innerHTML = '';
+        const msgs = await apiCall(`/chat?global=${isGlobal.getValue()}`);
+        msgs.forEach(m => {
+            const bubble = document.createElement('div');
+            bubble.className = "padding-8px_12px borderRadius-8px background-var(--ec-surface,_#f8f9fa) width-fit-content maxWidth-70%";
+            bubble.innerHTML = `<span class="fontSize-12px fontWeight-bold color-var(--ec-accent,_#1a73e8)">${m.Sender}</span><br>${m.Message}`;
+            chatBox.appendChild(bubble);
+        });
+        chatBox.scrollTop = chatBox.scrollHeight;
+    };
+
+    isGlobal.onChange(() => loadChats());
+
+    input.onEnter(async (val) => {
+        if(!val) return;
+        await apiCall('/chat', 'POST', { message: val, global: isGlobal.getValue() });
+        input.setValue('');
+        loadChats();
+    });
+
+    container.appendChild(new ECBasicCard().append(isGlobal).append(new ECDivider()).append(chatBox).append(input).element);
+    loadChats();
+}
+
+async function renderCRUD(moduleEndpoint, title, columns) {
+    const wrapper = document.createElement('div');
+    wrapper.className = "display-flex flexDirection-column gap-16px";
+    
+    const header = document.createElement('div');
+    header.className = "display-flex justifyContent-space-between alignItems-center";
+    header.innerHTML = `<h2 class="margin-0">${title}</h2>`;
+    
+    const addBtn = new ECButton("Add Record", {variant: "filled"}).onClick(() => showAddModal(moduleEndpoint, columns, refreshData));
+    header.appendChild(addBtn.element);
+    
+    const table = new ECDataTable({ columns, pageSize: 10 });
+    
+    wrapper.appendChild(header);
+    wrapper.appendChild(table.element);
+    contentArea.appendChild(wrapper);
+
+    const refreshData = async () => {
+        const data = await apiCall(`/data/${moduleEndpoint}`);
+        table.setData(data);
+    };
+
+    refreshData();
+}
+
+function showAddModal(module, columns, onSuccess) {
+    const modal = new ECModal(`New ${module} Record`);
+    const formFields = {};
+    
+    columns.forEach(col => {
+        const input = new ECTextbox({label: col.label || col.key, placeholder: `Enter ${col.key}`});
+        formFields[col.key] = input;
+        modal.addContent(input.element);
+        modal.addContent(document.createElement('br'));
+    });
+
+    modal.addFooterButton("Save", async () => {
+        const payload = {};
+        columns.forEach(col => payload[col.key] = formFields[col.key].getValue());
+        
+        const res = await apiCall(`/data/${module}`, 'POST', payload);
+        if (res.success) {
+            new ECToast("Record added successfully!", {type: "success"}).show();
+            modal.close();
+            onSuccess();
+        } else {
+            new ECToast("Failed to add record", {type: "error"}).show();
+        }
+    }, "filled");
+
+    document.body.appendChild(modal.element);
+    modal.open();
 }
 
 initApp();
