@@ -5,6 +5,11 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 require('dotenv').config();
 
+if (!process.env.JWT_SECRET) {
+    console.error("FATAL ERROR: JWT_SECRET environment variable is missing.");
+    process.exit(1);
+}
+
 const app = express();
 app.use(cors());
 app.use(express.json());
@@ -18,112 +23,93 @@ const dbConfig = {
     options: { encrypt: true, trustServerCertificate: true }
 };
 
-async function initErpDB() {
-    try {
-        const pool = await sql.connect(dbConfig);
-        await pool.query(`
-            IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='ErpCompanies' and xtype='U')
-            CREATE TABLE ErpCompanies (Id INT IDENTITY(1,1) PRIMARY KEY, Name NVARCHAR(100), Type NVARCHAR(50));
+const poolPromise = new sql.ConnectionPool(dbConfig)
+    .connect()
+    .then(pool => {
+        console.log('Connected to MSSQL Database Pool');
+        return pool;
+    })
+    .catch(err => {
+        console.error('Database Connection Failed:', err);
+        process.exit(1);
+    });
 
-            IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='ErpUsers' and xtype='U')
-            CREATE TABLE ErpUsers (Id INT IDENTITY(1,1) PRIMARY KEY, Username NVARCHAR(50) UNIQUE, PasswordHash NVARCHAR(255), Role NVARCHAR(20), CompanyId INT NULL FOREIGN KEY REFERENCES ErpCompanies(Id), IsActive BIT DEFAULT 1);
-            
-            -- Alter Users to track online status if it doesn't exist
-            IF COL_LENGTH('ErpUsers', 'LastActive') IS NULL ALTER TABLE ErpUsers ADD LastActive DATETIME DEFAULT GETDATE();
-
-            IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='ErpInventory' and xtype='U')
-            CREATE TABLE ErpInventory (Id INT IDENTITY(1,1) PRIMARY KEY, CompanyId INT, ItemName NVARCHAR(100), SKU NVARCHAR(50), Quantity INT, Price DECIMAL(18,2));
-
-            IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='ErpSales' and xtype='U')
-            CREATE TABLE ErpSales (Id INT IDENTITY(1,1) PRIMARY KEY, CompanyId INT, Customer NVARCHAR(100), Amount DECIMAL(18,2), Status NVARCHAR(50), OrderDate DATETIME DEFAULT GETDATE());
-
-            IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='ErpEmployees' and xtype='U')
-            CREATE TABLE ErpEmployees (Id INT IDENTITY(1,1) PRIMARY KEY, CompanyId INT, EmployeeName NVARCHAR(100), Position NVARCHAR(100), ComplianceStatus NVARCHAR(50), Salary DECIMAL(18,2));
-
-            IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='ErpSchedules' and xtype='U')
-            CREATE TABLE ErpSchedules (Id INT IDENTITY(1,1) PRIMARY KEY, CompanyId INT, EmployeeName NVARCHAR(100), ShiftStart DATETIME, ShiftEnd DATETIME, Status NVARCHAR(50));
-
-            IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='ErpTransactions' and xtype='U')
-            CREATE TABLE ErpTransactions (Id INT IDENTITY(1,1) PRIMARY KEY, CompanyId INT, Type NVARCHAR(50), Description NVARCHAR(200), Amount DECIMAL(18,2), TxDate DATETIME DEFAULT GETDATE());
-
-            IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='ErpChat' and xtype='U')
-            CREATE TABLE ErpChat (Id INT IDENTITY(1,1) PRIMARY KEY, CompanyId INT NULL, Sender NVARCHAR(50), Message NVARCHAR(MAX), IsGlobal BIT, Timestamp DATETIME DEFAULT GETDATE());
-            
-            -- Alter Chat to support Private Messaging
-            IF COL_LENGTH('ErpChat', 'Receiver') IS NULL ALTER TABLE ErpChat ADD Receiver NVARCHAR(50) NULL;
-
-            -- Table for Notifications
-            IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='ErpNotifications' and xtype='U')
-            CREATE TABLE ErpNotifications (Id INT IDENTITY(1,1) PRIMARY KEY, CompanyId INT NULL, Username NVARCHAR(50), Message NVARCHAR(255), IsRead BIT DEFAULT 0, CreatedAt DATETIME DEFAULT GETDATE());
-        `);
-        console.log("Line ERP Advanced Tables + Private Chat Initialized.");
-    } catch (err) { console.error("DB Error:", err.message); }
-}
-initErpDB();
-
-const requireAuth = async (req, res, next) => {
-    const token = req.headers.authorization?.split(' ')[1];
-    if (!token) return res.status(401).json({ error: "Missing token" });
-    try { 
-        req.user = jwt.verify(token, process.env.JWT_SECRET || 'secret'); 
-        
-        const pool = await sql.connect(dbConfig);
-        await pool.request().input('u', req.user.username).query("UPDATE ErpUsers SET LastActive = GETDATE() WHERE Username=@u");
-        
-        next(); 
-    } catch (err) { res.status(401).json({ error: "Session expired" }); }
+const isValidPassword = (pw) => {
+    return /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/.test(pw);
 };
 
 const getContextCompanyId = (req) => {
     if (req.user.role === 'SuperAdmin') {
         const headerId = req.headers['x-company-id'];
-        return headerId && headerId !== 'null' ? parseInt(headerId) : null;
+        return headerId && headerId !== 'null' ? parseInt(headerId, 10) : null;
     }
     return req.user.companyId;
 };
 
-app.get('/api/check-setup', async (req, res) => {
-    const pool = await sql.connect(dbConfig);
-    const r = await pool.request().query("SELECT COUNT(*) as c FROM ErpUsers");
-    res.json({ isSetup: r.recordset[0].c > 0 });
-});
-
-app.post('/api/setup', async (req, res) => {
-    const pool = await sql.connect(dbConfig);
-    const hash = await bcrypt.hash(req.body.password, 10);
-    await pool.request().input('u', req.body.username).input('h', hash)
-        .query("INSERT INTO ErpUsers (Username, PasswordHash, Role) VALUES (@u, @h, 'SuperAdmin')");
-    res.json({ success: true });
-});
+const requireAuth = async (req, res, next) => {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) return res.status(401).json({ error: "Missing or invalid token format" });
+    
+    const token = authHeader.split(' ')[1];
+    try { 
+        req.user = jwt.verify(token, process.env.JWT_SECRET); 
+        
+        const pool = await poolPromise;
+        await pool.request()
+            .input('u', sql.NVarChar, req.user.username)
+            .query("UPDATE ErpUsers SET LastActive = GETDATE() WHERE Username=@u");
+        
+        next(); 
+    } catch (err) { res.status(401).json({ error: "Session expired or invalid token" }); }
+};
 
 app.post('/api/login', async (req, res) => {
-    const pool = await sql.connect(dbConfig);
-    const r = await pool.request().input('u', req.body.username).query("SELECT * FROM ErpUsers WHERE Username=@u");
-    if (r.recordset.length === 0 || !(await bcrypt.compare(req.body.password, r.recordset[0].PasswordHash))) 
-        return res.status(401).json({ error: "Invalid credentials" });
-    
-    const user = r.recordset[0];
-    const token = jwt.sign({ id: user.Id, username: user.Username, role: user.Role, companyId: user.CompanyId }, process.env.JWT_SECRET || 'secret', { expiresIn: '24h' });
-    res.json({ token, role: user.Role, username: user.Username, companyId: user.CompanyId });
+    const { username, password } = req.body;
+    if (!username || !password) return res.status(400).json({ error: "Username and password are required" });
+
+    try {
+        const pool = await poolPromise;
+        const r = await pool.request()
+            .input('u', sql.NVarChar, username)
+            .query("SELECT * FROM ErpUsers WHERE Username=@u");
+            
+        if (r.recordset.length === 0 || !(await bcrypt.compare(password, r.recordset[0].PasswordHash))) {
+            return res.status(401).json({ error: "Invalid credentials" });
+        }
+        
+        const user = r.recordset[0];
+        if (!user.IsActive) return res.status(403).json({ error: "Account disabled." });
+
+        const token = jwt.sign(
+            { id: user.Id, username: user.Username, role: user.Role, companyId: user.CompanyId }, 
+            process.env.JWT_SECRET, 
+            { expiresIn: '24h' }
+        );
+        res.json({ token, role: user.Role, username: user.Username, companyId: user.CompanyId });
+    } catch (err) { res.status(500).json({ error: "Authentication error" }); }
 });
 
 app.get('/api/dashboard', requireAuth, async (req, res) => {
-    const pool = await sql.connect(dbConfig);
     const compId = getContextCompanyId(req);
+    try {
+        const pool = await poolPromise;
 
-    if (req.user.role === 'SuperAdmin' && !compId) {
-        const c = await pool.request().query("SELECT COUNT(*) as c FROM ErpCompanies");
-        const u = await pool.request().query("SELECT COUNT(*) as total FROM ErpUsers");
-        const online = await pool.request().query("SELECT COUNT(*) as c FROM ErpUsers WHERE LastActive > DATEADD(minute, -15, GETDATE())");
-        res.json({ type: 'super', companies: c.recordset[0].c, totalUsers: u.recordset[0].total, online: online.recordset[0].c });
-    } else {
-        const sales = await pool.request().input('c', compId).query("SELECT SUM(Amount) as Total FROM ErpSales WHERE CompanyId=@c");
-        const orders = await pool.request().input('c', compId).query("SELECT COUNT(*) as Total FROM ErpSales WHERE CompanyId=@c");
-        const emp = await pool.request().input('c', compId).query("SELECT COUNT(*) as Total FROM ErpEmployees WHERE CompanyId=@c AND ComplianceStatus='Cleared'");
-        const online = await pool.request().input('c', compId).query("SELECT COUNT(*) as Total FROM ErpUsers WHERE CompanyId=@c AND LastActive > DATEADD(minute, -15, GETDATE())");
-        const notifs = await pool.request().input('u', req.user.username).query("SELECT COUNT(*) as Total FROM ErpNotifications WHERE Username=@u AND IsRead=0");
+        if (req.user.role === 'SuperAdmin' && !compId) {
+            const c = await pool.request().query("SELECT COUNT(*) as c FROM ErpCompanies");
+            const u = await pool.request().query("SELECT COUNT(*) as total FROM ErpUsers");
+            const online = await pool.request().query("SELECT COUNT(*) as c FROM ErpUsers WHERE LastActive > DATEADD(minute, -15, GETDATE())");
+            return res.json({ type: 'super', companies: c.recordset[0].c, totalUsers: u.recordset[0].total, online: online.recordset[0].c });
+        } 
         
-        const chats = await pool.request().input('u', req.user.username).query("SELECT COUNT(*) as Total FROM ErpChat WHERE Receiver=@u AND Timestamp > DATEADD(day, -1, GETDATE())");
+        const reqObj = pool.request().input('c', sql.Int, compId);
+        
+        const sales = await reqObj.query("SELECT SUM(Amount) as Total FROM ErpSales WHERE CompanyId=@c");
+        const orders = await reqObj.query("SELECT COUNT(*) as Total FROM ErpSales WHERE CompanyId=@c");
+        const emp = await reqObj.query("SELECT COUNT(*) as Total FROM ErpEmployees WHERE CompanyId=@c AND ComplianceStatus='Cleared'");
+        const online = await reqObj.query("SELECT COUNT(*) as Total FROM ErpUsers WHERE CompanyId=@c AND LastActive > DATEADD(minute, -15, GETDATE())");
+        
+        const notifs = await pool.request().input('u', sql.NVarChar, req.user.username).query("SELECT COUNT(*) as Total FROM ErpNotifications WHERE Username=@u AND IsRead=0");
+        const chats = await pool.request().input('u', sql.NVarChar, req.user.username).query("SELECT COUNT(*) as Total FROM ErpChat WHERE Receiver=@u AND Timestamp > DATEADD(day, -1, GETDATE())");
 
         res.json({ 
             type: 'company', 
@@ -134,140 +120,199 @@ app.get('/api/dashboard', requireAuth, async (req, res) => {
             notifications: notifs.recordset[0].Total || 0,
             newChats: chats.recordset[0].Total || 0
         });
-    }
+    } catch (err) { res.status(500).json({ error: "Dashboard compilation failed" }); }
 });
 
 app.get('/api/companies', requireAuth, async (req, res) => {
-    const pool = await sql.connect(dbConfig);
-    const r = await pool.request().query("SELECT * FROM ErpCompanies");
-    res.json(r.recordset);
+    if (req.user.role !== 'SuperAdmin') return res.status(403).json({ error: "Unauthorized" });
+    try {
+        const pool = await poolPromise;
+        const r = await pool.request().query("SELECT Id, Name, Type FROM ErpCompanies");
+        res.json(r.recordset);
+    } catch (err) { res.status(500).json({ error: "Database error" }); }
 });
 
 app.post('/api/companies', requireAuth, async (req, res) => {
     if (req.user.role !== 'SuperAdmin') return res.status(403).json({ error: "Unauthorized" });
     const { name, type, adminUsername, adminPassword } = req.body;
+    
+    if (!name || !type || !adminUsername || !adminPassword) return res.status(400).json({ error: "Missing fields" });
+    if (!isValidPassword(adminPassword)) return res.status(400).json({ error: "Password must be 8+ chars and contain upper, lower, number, and special character." });
+
     try {
-        const pool = await sql.connect(dbConfig);
-        const compRes = await pool.request().input('n', name).input('t', type)
+        const pool = await poolPromise;
+        
+        const userCheck = await pool.request().input('u', sql.NVarChar, adminUsername).query("SELECT Id FROM ErpUsers WHERE Username=@u");
+        if (userCheck.recordset.length > 0) return res.status(400).json({ error: "Username is already taken" });
+
+        const compRes = await pool.request()
+            .input('n', sql.NVarChar, name)
+            .input('t', sql.NVarChar, type)
             .query("INSERT INTO ErpCompanies (Name, Type) OUTPUT INSERTED.Id VALUES (@n, @t)");
+            
         const newCompId = compRes.recordset[0].Id;
         const hash = await bcrypt.hash(adminPassword, 10);
-        await pool.request().input('u', adminUsername).input('h', hash).input('c', newCompId)
+        
+        await pool.request()
+            .input('u', sql.NVarChar, adminUsername)
+            .input('h', sql.NVarChar, hash)
+            .input('c', sql.Int, newCompId)
             .query("INSERT INTO ErpUsers (Username, PasswordHash, Role, CompanyId) VALUES (@u, @h, 'CompanyAdmin', @c)");
+            
         res.json({ success: true });
-    } catch (err) { res.status(500).json({ error: err.message }); }
+    } catch (err) { res.status(500).json({ error: "Failed to create tenant" }); }
 });
 
 app.post('/api/users', requireAuth, async (req, res) => {
     const compId = getContextCompanyId(req);
     if (!compId) return res.status(400).json({ error: "No active company context" });
+    
     const { username, password, role } = req.body;
+    if (!username || !password || !role) return res.status(400).json({ error: "Missing required fields" });
+    if (!isValidPassword(password)) return res.status(400).json({ error: "Password does not meet complexity requirements." });
+
+    const allowedRoles =['Employee', 'Manager'];
+    if (req.user.role === 'SuperAdmin') allowedRoles.push('CompanyAdmin');
+    if (!allowedRoles.includes(role)) return res.status(403).json({ error: "Unauthorized role assignment" });
+
     try {
-        const pool = await sql.connect(dbConfig);
+        const pool = await poolPromise;
         const hash = await bcrypt.hash(password, 10);
-        await pool.request().input('u', username).input('h', hash).input('r', role).input('c', compId)
+        await pool.request()
+            .input('u', sql.NVarChar, username)
+            .input('h', sql.NVarChar, hash)
+            .input('r', sql.NVarChar, role)
+            .input('c', sql.Int, compId)
             .query("INSERT INTO ErpUsers (Username, PasswordHash, Role, CompanyId) VALUES (@u, @h, @r, @c)");
         res.json({ success: true });
-    } catch (err) { res.status(500).json({ error: err.message }); }
+    } catch (err) { res.status(500).json({ error: "Failed to create user (may already exist)" }); }
 });
 
-const TABLES = {
-    inventory: 'ErpInventory',
-    sales: 'ErpSales',
-    employees: 'ErpEmployees',
-    schedules: 'ErpSchedules',
-    finance: 'ErpTransactions'
+const TABLE_SCHEMAS = {
+    inventory: { table: 'ErpInventory', fields:['ItemName', 'SKU', 'Quantity', 'Price'] },
+    sales: { table: 'ErpSales', fields:['Customer', 'Amount', 'Status'] },
+    employees: { table: 'ErpEmployees', fields:['EmployeeName', 'Position', 'ComplianceStatus', 'Salary'] },
+    schedules: { table: 'ErpSchedules', fields: ['EmployeeName', 'ShiftStart', 'ShiftEnd', 'Status'] },
+    finance: { table: 'ErpTransactions', fields: ['Type', 'Description', 'Amount'] }
 };
 
 app.get('/api/data/:module', requireAuth, async (req, res) => {
-    const table = TABLES[req.params.module];
+    const schema = TABLE_SCHEMAS[req.params.module];
     const compId = getContextCompanyId(req);
 
-    if (!table) return res.status(400).json({ error: "Invalid module" });
+    if (!schema) return res.status(400).json({ error: "Invalid module" });
 
     try {
-        const pool = await sql.connect(dbConfig);
+        const pool = await poolPromise;
         if (compId) {
-            const r = await pool.request().input('c', compId).query(`SELECT * FROM ${table} WHERE CompanyId=@c ORDER BY Id DESC`);
+            const r = await pool.request().input('c', sql.Int, compId).query(`SELECT * FROM ${schema.table} WHERE CompanyId=@c ORDER BY Id DESC`);
             res.json(r.recordset);
         } else if (req.user.role === 'SuperAdmin') {
-            const r = await pool.request().query(`SELECT * FROM ${table} ORDER BY Id DESC`);
+            const r = await pool.request().query(`SELECT * FROM ${schema.table} ORDER BY Id DESC`);
             res.json(r.recordset);
         } else {
             res.status(400).json({ error: "Invalid context" });
         }
-    } catch (err) { res.status(500).json({ error: err.message }); }
+    } catch (err) { res.status(500).json({ error: "Database error fetching module data" }); }
 });
 
 app.post('/api/data/:module', requireAuth, async (req, res) => {
-    const table = TABLES[req.params.module];
+    const schema = TABLE_SCHEMAS[req.params.module];
     const compId = getContextCompanyId(req);
     
-    if (!table) return res.status(400).json({ error: "Invalid module" });
+    if (!schema) return res.status(400).json({ error: "Invalid module" });
     if (!compId) return res.status(400).json({ error: "Please select a specific company to add records." });
     
-    const fields = Object.keys(req.body);
-    const values = Object.values(req.body);
-    
-    const cols =['CompanyId', ...fields].join(', ');
-    const params =['@c', ...fields.map((_, i) => `@p${i}`)].join(', ');
+    const fieldsToInsert = [];
+    const valuesToInsert =[];
+
+    schema.fields.forEach(field => {
+        if (req.body[field] !== undefined) {
+            fieldsToInsert.push(field);
+            valuesToInsert.push(req.body[field]);
+        }
+    });
+
+    if (fieldsToInsert.length === 0) return res.status(400).json({ error: "No valid fields provided" });
+
+    const cols =['CompanyId', ...fieldsToInsert].join(', ');
+    const params =['@c', ...fieldsToInsert.map((_, i) => `@p${i}`)].join(', ');
 
     try {
-        const pool = await sql.connect(dbConfig);
+        const pool = await poolPromise;
         const reqObj = pool.request().input('c', sql.Int, compId);
-        values.forEach((v, i) => reqObj.input(`p${i}`, v));
-
-        await reqObj.query(`INSERT INTO ${table} (${cols}) VALUES (${params})`);
+        
+        valuesToInsert.forEach((v, i) => reqObj.input(`p${i}`, v)); 
+        await reqObj.query(`INSERT INTO ${schema.table} (${cols}) VALUES (${params})`);
+        
         res.json({ success: true });
-    } catch (err) { res.status(500).json({ error: err.message }); }
+    } catch (err) { res.status(500).json({ error: "Failed to insert record" }); }
 });
 
 app.get('/api/chat/users', requireAuth, async (req, res) => {
     const compId = getContextCompanyId(req);
-    const pool = await sql.connect(dbConfig);
-    let q = "SELECT Username, LastActive FROM ErpUsers WHERE Username != @u";
-    if (compId) q += ` AND CompanyId=${compId}`;
-    const r = await pool.request().input('u', req.user.username).query(q);
-    res.json(r.recordset);
+    try {
+        const pool = await poolPromise;
+        let q = "SELECT Username, LastActive FROM ErpUsers WHERE Username != @u";
+        const reqObj = pool.request().input('u', sql.NVarChar, req.user.username);
+        
+        if (compId) {
+            q += " AND CompanyId=@c";
+            reqObj.input('c', sql.Int, compId);
+        }
+        
+        const r = await reqObj.query(q);
+        res.json(r.recordset);
+    } catch (e) { res.status(500).json({ error: "Failed to fetch users" }); }
 });
 
 app.get('/api/chat', requireAuth, async (req, res) => {
-    const { mode, user } = req.query; // mode: global, company, private
+    const { mode, user } = req.query; 
     const compId = getContextCompanyId(req);
-    const pool = await sql.connect(dbConfig);
-    const reqObj = pool.request();
-    let q = "";
-
-    if (mode === 'global') {
-        q = "SELECT TOP 50 Sender, Message, Timestamp FROM ErpChat WHERE IsGlobal=1 ORDER BY Timestamp ASC";
-    } else if (mode === 'company') {
-        q = `SELECT TOP 50 Sender, Message, Timestamp FROM ErpChat WHERE IsGlobal=0 AND Receiver IS NULL AND CompanyId=${compId || 0} ORDER BY Timestamp ASC`;
-    } else if (mode === 'private') {
-        reqObj.input('me', req.user.username).input('them', user);
-        q = "SELECT TOP 50 Sender, Message, Timestamp FROM ErpChat WHERE (Sender=@me AND Receiver=@them) OR (Sender=@them AND Receiver=@me) ORDER BY Timestamp ASC";
-    }
     
-    const r = await reqObj.query(q);
-    res.json(r.recordset);
+    try {
+        const pool = await poolPromise;
+        const reqObj = pool.request();
+        let q = "";
+
+        if (mode === 'global') {
+            q = "SELECT TOP 50 Sender, Message, Timestamp FROM ErpChat WHERE IsGlobal=1 ORDER BY Timestamp ASC";
+        } else if (mode === 'company') {
+            reqObj.input('cId', sql.Int, compId || 0);
+            q = "SELECT TOP 50 Sender, Message, Timestamp FROM ErpChat WHERE IsGlobal=0 AND Receiver IS NULL AND CompanyId=@cId ORDER BY Timestamp ASC";
+        } else if (mode === 'private') {
+            if (!user) return res.status(400).json({error: "Target user required"});
+            reqObj.input('me', sql.NVarChar, req.user.username).input('them', sql.NVarChar, user);
+            q = "SELECT TOP 50 Sender, Message, Timestamp FROM ErpChat WHERE (Sender=@me AND Receiver=@them) OR (Sender=@them AND Receiver=@me) ORDER BY Timestamp ASC";
+        } else {
+            return res.status(400).json({ error: "Invalid chat mode" });
+        }
+        
+        const r = await reqObj.query(q);
+        res.json(r.recordset);
+    } catch (err) { res.status(500).json({ error: "Failed to fetch chat history" }); }
 });
 
 app.post('/api/chat', requireAuth, async (req, res) => {
     const { mode, message, receiver } = req.body;
+    if (!message || !mode) return res.status(400).json({error: "Missing fields"});
+
     const compId = getContextCompanyId(req);
-    const pool = await sql.connect(dbConfig);
-    
     const isGlobal = mode === 'global' ? 1 : 0;
     const rec = mode === 'private' ? receiver : null;
     const cId = mode === 'global' ? null : compId;
 
-    await pool.request()
-        .input('c', cId)
-        .input('s', req.user.username)
-        .input('m', message)
-        .input('g', isGlobal)
-        .input('r', rec)
-        .query("INSERT INTO ErpChat (CompanyId, Sender, Message, IsGlobal, Receiver) VALUES (@c, @s, @m, @g, @r)");
-    res.json({ success: true });
+    try {
+        const pool = await poolPromise;
+        await pool.request()
+            .input('c', sql.Int, cId)
+            .input('s', sql.NVarChar, req.user.username)
+            .input('m', sql.NVarChar, message)
+            .input('g', sql.Bit, isGlobal)
+            .input('r', sql.NVarChar, rec)
+            .query("INSERT INTO ErpChat (CompanyId, Sender, Message, IsGlobal, Receiver) VALUES (@c, @s, @m, @g, @r)");
+        res.json({ success: true });
+    } catch (e) { res.status(500).json({ error: "Failed to send message" }); }
 });
 
-app.listen(process.env.ERP_PORT || 3001, () => console.log(`Line ERP Server on ${process.env.ERP_PORT || 3001}`));
+app.listen(process.env.ERP_PORT || 3001, () => console.log(`Secure Line ERP Server on ${process.env.ERP_PORT || 3001}`));
