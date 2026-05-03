@@ -51,11 +51,20 @@ async function initErpDB() {
 }
 initErpDB();
 
+// --- Auth Middlewares ---
 const requireAuth = (req, res, next) => {
     const token = req.headers.authorization?.split(' ')[1];
     if (!token) return res.status(401).json({ error: "Missing token" });
     try { req.user = jwt.verify(token, process.env.JWT_SECRET || 'secret'); next(); } 
     catch (err) { res.status(401).json({ error: "Session expired" }); }
+};
+
+const getContextCompanyId = (req) => {
+    if (req.user.role === 'SuperAdmin') {
+        const headerId = req.headers['x-company-id'];
+        return headerId && headerId !== 'null' ? parseInt(headerId) : null;
+    }
+    return req.user.companyId;
 };
 
 app.get('/api/check-setup', async (req, res) => {
@@ -85,37 +94,60 @@ app.post('/api/login', async (req, res) => {
 
 app.get('/api/dashboard', requireAuth, async (req, res) => {
     const pool = await sql.connect(dbConfig);
-    if (req.user.role === 'SuperAdmin') {
+    const compId = getContextCompanyId(req);
+
+    if (req.user.role === 'SuperAdmin' && !compId) {
         const c = await pool.request().query("SELECT * FROM ErpCompanies");
-        res.json({ type: 'super', companies: c.recordset });
+        const u = await pool.request().query("SELECT COUNT(*) as total FROM ErpUsers");
+        res.json({ type: 'super', companies: c.recordset, totalUsers: u.recordset[0].total });
     } else {
-        const sales = await pool.request().input('c', req.user.companyId).query("SELECT SUM(Amount) as Total FROM ErpSales WHERE CompanyId=@c");
-        const inv = await pool.request().input('c', req.user.companyId).query("SELECT COUNT(*) as Total FROM ErpInventory WHERE CompanyId=@c");
-        res.json({ type: 'company', sales: sales.recordset[0].Total || 0, inventoryCount: inv.recordset[0].Total || 0 });
+        const sales = await pool.request().input('c', compId).query("SELECT SUM(Amount) as Total FROM ErpSales WHERE CompanyId=@c");
+        const inv = await pool.request().input('c', compId).query("SELECT COUNT(*) as Total FROM ErpInventory WHERE CompanyId=@c");
+        const emp = await pool.request().input('c', compId).query("SELECT COUNT(*) as Total FROM ErpEmployees WHERE CompanyId=@c");
+        const tx = await pool.request().input('c', compId).query("SELECT COUNT(*) as Total FROM ErpTransactions WHERE CompanyId=@c");
+        
+        res.json({ 
+            type: 'company', 
+            sales: sales.recordset[0].Total || 0, 
+            inventoryCount: inv.recordset[0].Total || 0,
+            employeeCount: emp.recordset[0].Total || 0,
+            transactionCount: tx.recordset[0].Total || 0
+        });
     }
 });
 
-app.get('/api/chat', requireAuth, async (req, res) => {
-    const isGlobal = req.query.global === 'true';
+app.get('/api/companies', requireAuth, async (req, res) => {
     const pool = await sql.connect(dbConfig);
-    let q = "SELECT TOP 50 Sender, Message, Timestamp FROM ErpChat WHERE IsGlobal=1 ORDER BY Timestamp ASC";
-    if (!isGlobal && req.user.companyId) {
-        q = `SELECT TOP 50 Sender, Message, Timestamp FROM ErpChat WHERE IsGlobal=0 AND CompanyId=${req.user.companyId} ORDER BY Timestamp ASC`;
-    }
-    const r = await pool.request().query(q);
+    const r = await pool.request().query("SELECT * FROM ErpCompanies");
     res.json(r.recordset);
 });
 
-app.post('/api/chat', requireAuth, async (req, res) => {
-    const isGlobal = req.body.global === true;
-    const pool = await sql.connect(dbConfig);
-    await pool.request()
-        .input('c', isGlobal ? null : req.user.companyId)
-        .input('s', req.user.username)
-        .input('m', req.body.message)
-        .input('g', isGlobal ? 1 : 0)
-        .query("INSERT INTO ErpChat (CompanyId, Sender, Message, IsGlobal) VALUES (@c, @s, @m, @g)");
-    res.json({ success: true });
+app.post('/api/companies', requireAuth, async (req, res) => {
+    if (req.user.role !== 'SuperAdmin') return res.status(403).json({ error: "Unauthorized" });
+    const { name, type, adminUsername, adminPassword } = req.body;
+    try {
+        const pool = await sql.connect(dbConfig);
+        const compRes = await pool.request().input('n', name).input('t', type)
+            .query("INSERT INTO ErpCompanies (Name, Type) OUTPUT INSERTED.Id VALUES (@n, @t)");
+        const newCompId = compRes.recordset[0].Id;
+        const hash = await bcrypt.hash(adminPassword, 10);
+        await pool.request().input('u', adminUsername).input('h', hash).input('c', newCompId)
+            .query("INSERT INTO ErpUsers (Username, PasswordHash, Role, CompanyId) VALUES (@u, @h, 'CompanyAdmin', @c)");
+        res.json({ success: true });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/users', requireAuth, async (req, res) => {
+    const compId = getContextCompanyId(req);
+    if (!compId) return res.status(400).json({ error: "No active company context" });
+    const { username, password, role } = req.body;
+    try {
+        const pool = await sql.connect(dbConfig);
+        const hash = await bcrypt.hash(password, 10);
+        await pool.request().input('u', username).input('h', hash).input('r', role).input('c', compId)
+            .query("INSERT INTO ErpUsers (Username, PasswordHash, Role, CompanyId) VALUES (@u, @h, @r, @c)");
+        res.json({ success: true });
+    } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 const TABLES = {
@@ -128,28 +160,49 @@ const TABLES = {
 
 app.get('/api/data/:module', requireAuth, async (req, res) => {
     const table = TABLES[req.params.module];
-    if (!table) return res.status(400).json({ error: "Invalid module" });
+    const compId = getContextCompanyId(req);
+    if (!table || !compId) return res.status(400).json({ error: "Invalid module or context" });
     const pool = await sql.connect(dbConfig);
-    const r = await pool.request().input('c', req.user.companyId).query(`SELECT * FROM ${table} WHERE CompanyId=@c ORDER BY Id DESC`);
+    const r = await pool.request().input('c', compId).query(`SELECT * FROM ${table} WHERE CompanyId=@c ORDER BY Id DESC`);
     res.json(r.recordset);
 });
 
 app.post('/api/data/:module', requireAuth, async (req, res) => {
     const table = TABLES[req.params.module];
-    if (!table) return res.status(400).json({ error: "Invalid module" });
+    const compId = getContextCompanyId(req);
+    if (!table || !compId) return res.status(400).json({ error: "Invalid module or context" });
     
     const fields = Object.keys(req.body);
     const values = Object.values(req.body);
     
-    const cols = ['CompanyId', ...fields].join(', ');
+    const cols =['CompanyId', ...fields].join(', ');
     const params =['@c', ...fields.map((_, i) => `@p${i}`)].join(', ');
 
     const pool = await sql.connect(dbConfig);
-    const reqObj = pool.request().input('c', sql.Int, req.user.companyId);
+    const reqObj = pool.request().input('c', sql.Int, compId);
     values.forEach((v, i) => reqObj.input(`p${i}`, v));
 
     await reqObj.query(`INSERT INTO ${table} (${cols}) VALUES (${params})`);
     res.json({ success: true });
 });
 
-app.listen(process.env.ERP_PORT || 3001, () => console.log(`Line ERP Server running on port ${process.env.ERP_PORT || 3001}`));
+app.get('/api/chat', requireAuth, async (req, res) => {
+    const isGlobal = req.query.global === 'true';
+    const compId = getContextCompanyId(req);
+    const pool = await sql.connect(dbConfig);
+    let q = "SELECT TOP 50 Sender, Message, Timestamp FROM ErpChat WHERE IsGlobal=1 ORDER BY Timestamp ASC";
+    if (!isGlobal && compId) q = `SELECT TOP 50 Sender, Message, Timestamp FROM ErpChat WHERE IsGlobal=0 AND CompanyId=${compId} ORDER BY Timestamp ASC`;
+    const r = await pool.request().query(q);
+    res.json(r.recordset);
+});
+
+app.post('/api/chat', requireAuth, async (req, res) => {
+    const isGlobal = req.body.global === true;
+    const compId = getContextCompanyId(req);
+    const pool = await sql.connect(dbConfig);
+    await pool.request().input('c', isGlobal ? null : compId).input('s', req.user.username).input('m', req.body.message).input('g', isGlobal ? 1 : 0)
+        .query("INSERT INTO ErpChat (CompanyId, Sender, Message, IsGlobal) VALUES (@c, @s, @m, @g)");
+    res.json({ success: true });
+});
+
+app.listen(process.env.ERP_PORT || 3001, () => console.log(`Line ERP Server on ${process.env.ERP_PORT || 3001}`));
