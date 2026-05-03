@@ -51,7 +51,6 @@ async function initErpDB() {
 }
 initErpDB();
 
-// --- Auth Middlewares ---
 const requireAuth = (req, res, next) => {
     const token = req.headers.authorization?.split(' ')[1];
     if (!token) return res.status(401).json({ error: "Missing token" });
@@ -161,16 +160,29 @@ const TABLES = {
 app.get('/api/data/:module', requireAuth, async (req, res) => {
     const table = TABLES[req.params.module];
     const compId = getContextCompanyId(req);
-    if (!table || !compId) return res.status(400).json({ error: "Invalid module or context" });
-    const pool = await sql.connect(dbConfig);
-    const r = await pool.request().input('c', compId).query(`SELECT * FROM ${table} WHERE CompanyId=@c ORDER BY Id DESC`);
-    res.json(r.recordset);
+
+    if (!table) return res.status(400).json({ error: "Invalid module" });
+
+    try {
+        const pool = await sql.connect(dbConfig);
+        if (compId) {
+            const r = await pool.request().input('c', compId).query(`SELECT * FROM ${table} WHERE CompanyId=@c ORDER BY Id DESC`);
+            res.json(r.recordset);
+        } else if (req.user.role === 'SuperAdmin') {
+            const r = await pool.request().query(`SELECT * FROM ${table} ORDER BY Id DESC`);
+            res.json(r.recordset);
+        } else {
+            res.status(400).json({ error: "Invalid context" });
+        }
+    } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 app.post('/api/data/:module', requireAuth, async (req, res) => {
     const table = TABLES[req.params.module];
     const compId = getContextCompanyId(req);
-    if (!table || !compId) return res.status(400).json({ error: "Invalid module or context" });
+    
+    if (!table) return res.status(400).json({ error: "Invalid module" });
+    if (!compId) return res.status(400).json({ error: "Please select a specific company to add records." });
     
     const fields = Object.keys(req.body);
     const values = Object.values(req.body);
@@ -178,12 +190,14 @@ app.post('/api/data/:module', requireAuth, async (req, res) => {
     const cols =['CompanyId', ...fields].join(', ');
     const params =['@c', ...fields.map((_, i) => `@p${i}`)].join(', ');
 
-    const pool = await sql.connect(dbConfig);
-    const reqObj = pool.request().input('c', sql.Int, compId);
-    values.forEach((v, i) => reqObj.input(`p${i}`, v));
+    try {
+        const pool = await sql.connect(dbConfig);
+        const reqObj = pool.request().input('c', sql.Int, compId);
+        values.forEach((v, i) => reqObj.input(`p${i}`, v));
 
-    await reqObj.query(`INSERT INTO ${table} (${cols}) VALUES (${params})`);
-    res.json({ success: true });
+        await reqObj.query(`INSERT INTO ${table} (${cols}) VALUES (${params})`);
+        res.json({ success: true });
+    } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 app.get('/api/chat', requireAuth, async (req, res) => {
@@ -191,7 +205,10 @@ app.get('/api/chat', requireAuth, async (req, res) => {
     const compId = getContextCompanyId(req);
     const pool = await sql.connect(dbConfig);
     let q = "SELECT TOP 50 Sender, Message, Timestamp FROM ErpChat WHERE IsGlobal=1 ORDER BY Timestamp ASC";
-    if (!isGlobal && compId) q = `SELECT TOP 50 Sender, Message, Timestamp FROM ErpChat WHERE IsGlobal=0 AND CompanyId=${compId} ORDER BY Timestamp ASC`;
+    if (!isGlobal) {
+        if (compId) q = `SELECT TOP 50 Sender, Message, Timestamp FROM ErpChat WHERE IsGlobal=0 AND CompanyId=${compId} ORDER BY Timestamp ASC`;
+        else if (req.user.role === 'SuperAdmin') q = `SELECT TOP 50 Sender, Message, Timestamp FROM ErpChat WHERE IsGlobal=0 ORDER BY Timestamp ASC`;
+    }
     const r = await pool.request().query(q);
     res.json(r.recordset);
 });

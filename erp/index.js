@@ -1,9 +1,9 @@
 const API_BASE = 'https://isaiahnoelpulidosalazar-github-io-erp.onrender.com/api';
 
-function showLoader() { document.getElementById('global-loader').style.opacity = '1'; document.getElementById('global-loader').style.pointerEvents = 'auto'; }
-function hideLoader() { document.getElementById('global-loader').style.opacity = '0'; setTimeout(() => document.getElementById('global-loader').style.pointerEvents = 'none', 300); }
+function showLoader() { document.getElementById('global-loader').classList.replace('opacity-0', 'opacity-1'); }
+function hideLoader() { document.getElementById('global-loader').classList.replace('opacity-1', 'opacity-0'); }
 
-document.getElementById('spinner-container').appendChild(new ECSpinner({size: "lg"}).element);
+document.getElementById('spinner-container').appendChild(new ECSpinner({size: "sm"}).element);
 
 async function apiCall(endpoint, method = 'GET', body = null) {
     const token = localStorage.getItem('erp_token');
@@ -275,6 +275,12 @@ async function renderCalendar() {
 
     const schedules = await apiCall('/data/schedules');
     
+    if (schedules.error) {
+        new ECToast(schedules.error, {type:"error"}).show();
+        hideLoader();
+        return;
+    }
+    
     const now = new Date();
     const year = now.getFullYear();
     const month = now.getMonth();
@@ -393,7 +399,11 @@ async function renderCRUD(moduleEndpoint, title, columns) {
     root.appendChild(table.element);
 
     const data = await apiCall(`/data/${moduleEndpoint}`);
-    if (data.error) { new ECToast(data.error, {type:"error"}).show(); hideLoader(); return; }
+    if (data.error) { 
+        new ECToast(data.error, {type:"error"}).show(); 
+        hideLoader(); 
+        return; 
+    }
     
     table.setData(data);
     window.ECStyleSheet.scan();
@@ -433,7 +443,7 @@ function showAddModal(module, columns, onSuccess) {
             modal.close();
             onSuccess();
         } else {
-            new ECToast("Failed to add record", {type: "error"}).show();
+            new ECToast(res.error || "Failed to add record", {type: "error"}).show();
             hideLoader();
         }
     }, "filled");
