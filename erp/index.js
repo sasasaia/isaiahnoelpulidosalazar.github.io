@@ -27,10 +27,13 @@ async function apiCall(endpoint, method = 'GET', body = null) {
 
 async function initApp() {
     showLoader();
-    const setupRes = await apiCall('/check-setup');
-    if (!setupRes.isSetup) { hideLoader(); return renderSetup(); }
-    if (localStorage.getItem('erp_token')) { await setupWorkspace(); hideLoader(); } 
-    else { hideLoader(); renderLogin(); }
+    if (localStorage.getItem('erp_token')) { 
+        await setupWorkspace(); 
+        hideLoader(); 
+    } else { 
+        hideLoader(); 
+        renderLogin(); 
+    }
 }
 
 function logout() { localStorage.clear(); location.reload(); }
@@ -48,24 +51,6 @@ function toggleView(view) {
     }
 }
 
-function renderSetup() {
-    toggleView('login');
-    const root = document.getElementById('login-root');
-    root.innerHTML = '';
-    const hero = new ECHero({ title: "Initialize System", subtitle: "Set up the SuperAdmin profile.", eyebrow: "LINE ERP SETUP" });
-    const box = new ECBasicCard();
-    const user = new ECTextbox({placeholder: "Admin Username"});
-    const pass = new ECTextbox({placeholder: "Password", type: "password"});
-    const btn = new ECButton("Initialize").onClick(async () => {
-        const res = await apiCall('/setup', 'POST', { username: user.getValue(), password: pass.getValue() });
-        if (res.success) { new ECToast("Setup Complete!", {type: "success"}).show(); initApp(); }
-    });
-    box.append(user).append(pass).append(btn);
-    hero.element.appendChild(box.element);
-    root.appendChild(hero.element);
-    window.ECStyleSheet.scan();
-}
-
 function renderLogin() {
     toggleView('login');
     const root = document.getElementById('login-root');
@@ -76,6 +61,7 @@ function renderLogin() {
     
     const user = new ECTextbox({placeholder: "Username", label: "Account Username"});
     const pass = new ECTextbox({placeholder: "Password", type: "password", label: "Password"});
+    
     const btn = new ECButton("Secure Login", {variant: "filled"}).onClick(async () => {
         showLoader();
         const res = await apiCall('/login', 'POST', { username: user.getValue(), password: pass.getValue() });
