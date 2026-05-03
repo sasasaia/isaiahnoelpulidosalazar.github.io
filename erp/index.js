@@ -110,10 +110,7 @@ async function setupWorkspace() {
         const btn = document.createElement('button');
         btn.className = "width-100% display-flex alignItems-center gap-12px padding-10px_16px background-transparent border-none color-#94a3b8 cursor-pointer borderRadius-8px transition-0.2s hover:background-#1e293b hover:color-#ffffff textAlign-left fontSize-14px fontWeight-500";
         btn.innerHTML = `<span class="fontSize-18px">${icon}</span> ${label}`;
-        btn.onclick = () => { 
-            document.getElementById('topbar-title').textContent = label;
-            action(); 
-        };
+        btn.onclick = () => { document.getElementById('topbar-title').textContent = label; action(); };
         nav.appendChild(btn);
     };
 
@@ -185,43 +182,32 @@ async function renderDashboard() {
     root.innerHTML = '';
     
     const res = await apiCall('/dashboard');
-    const grid = new ECGrid({columns: 4, gap: "24px"});
+    const grid = new ECGrid({columns: 3, gap: "20px"});
     
-    if (res.type === 'company') {
-        const createStatCard = (title, val, color) => {
-            return new ECBasicCard(`
-                <div class="display-flex flexDirection-column gap-8px">
+    const createStatCard = (title, val, color, icon) => {
+        return new ECBasicCard(`
+            <div class="display-flex alignItems-center gap-16px">
+                <div class="width-48px height-48px borderRadius-12px display-flex alignItems-center justifyContent-center fontSize-24px background-var(--ec-surface,_#f8f9fa)">${icon}</div>
+                <div class="display-flex flexDirection-column">
                     <span class="fontSize-13px fontWeight-600 color-#64748b textTransform-uppercase">${title}</span>
-                    <span class="fontSize-32px fontWeight-bold color-${color}">${val}</span>
+                    <span class="fontSize-28px fontWeight-bold color-${color}">${val}</span>
                 </div>
-            `);
-        };
-        grid.addItem(createStatCard("Total Sales", `$${res.sales.toFixed(2)}`, "#10b981"));
-        grid.addItem(createStatCard("Inventory Items", res.inventoryCount, "#3b82f6"));
-        grid.addItem(createStatCard("Total Employees", res.employeeCount, "#8b5cf6"));
-        grid.addItem(createStatCard("Transactions", res.transactionCount, "#f59e0b"));
+            </div>
+        `);
+    };
 
+    if (res.type === 'company') {
+        grid.addItem(createStatCard("Total Sales", `$${res.sales.toFixed(2)}`, "#10b981", "💰"));
+        grid.addItem(createStatCard("Total Orders", res.orders, "#3b82f6", "📦"));
+        grid.addItem(createStatCard("Currently Online", res.online, "#14b8a6", "🟢"));
+        grid.addItem(createStatCard("Active Employees", res.activeEmployees, "#8b5cf6", "👨‍💼"));
+        grid.addItem(createStatCard("New Notifications", res.notifications, "#f59e0b", "🔔"));
+        grid.addItem(createStatCard("New Chats", res.newChats, "#ec4899", "💬"));
         root.appendChild(grid.element);
-
-        const targetCard = new ECBasicCard("<h3 class='margin-0_0_16px fontSize-16px'>Monthly Sales Target</h3>");
-        const pb = new ECProgressBar({value: (res.sales / 10000) * 100, label: "Progress to $10,000"});
-        targetCard.append(pb);
-        targetCard.element.classList.add("marginTop-24px");
-        root.appendChild(targetCard.element);
-
     } else {
-        grid.addItem(new ECBasicCard(`
-            <div class="display-flex flexDirection-column gap-8px">
-                <span class="fontSize-13px fontWeight-600 color-#64748b textTransform-uppercase">Registered Tenants</span>
-                <span class="fontSize-32px fontWeight-bold color-#3b82f6">${res.companies.length}</span>
-            </div>
-        `));
-        grid.addItem(new ECBasicCard(`
-            <div class="display-flex flexDirection-column gap-8px">
-                <span class="fontSize-13px fontWeight-600 color-#64748b textTransform-uppercase">Total Global Users</span>
-                <span class="fontSize-32px fontWeight-bold color-#8b5cf6">${res.totalUsers}</span>
-            </div>
-        `));
+        grid.addItem(createStatCard("Registered Tenants", res.companies, "#3b82f6", "🏢"));
+        grid.addItem(createStatCard("Global Users", res.totalUsers, "#8b5cf6", "🌍"));
+        grid.addItem(createStatCard("Currently Online", res.online, "#10b981", "🟢"));
         root.appendChild(grid.element);
     }
 
@@ -243,15 +229,131 @@ async function renderCompaniesView() {
     root.appendChild(header);
 
     const comps = await apiCall('/companies');
-    const table = new ECDataTable({
-        columns:[{key:'Id'}, {key:'Name'}, {key:'Type'}],
-        data: comps
-    });
+    const table = new ECDataTable({ columns:[{key:'Id'}, {key:'Name'}, {key:'Type'}], data: comps });
 
     root.appendChild(table.element);
     window.ECStyleSheet.scan();
     hideLoader();
 }
+
+// ---------------- COMMUNICATIONS / CHAT ----------------
+
+async function renderChat() {
+    showLoader();
+    const root = rootArea();
+    root.innerHTML = '';
+    
+    let activeMode = 'company';
+    let activeUser = null;
+
+    // Outer layout container
+    const chatContainer = document.createElement('div');
+    chatContainer.className = "display-flex gap-20px height-calc(100vh_-_120px) width-100%";
+
+    // Sidebar
+    const sidebar = document.createElement('div');
+    sidebar.className = "width-260px background-#fff border-1px_solid_#e2e8f0 borderRadius-12px padding-16px display-flex flexDirection-column gap-16px overflowY-auto";
+    
+    const renderSidebarBtn = (label, icon, mode, user = null, isOnline = false) => {
+        const btn = document.createElement('button');
+        const isActive = activeMode === mode && activeUser === user;
+        btn.className = `width-100% display-flex alignItems-center gap-10px padding-10px_12px border-none borderRadius-8px cursor-pointer transition-0.2s textAlign-left fontSize-14px fontWeight-500 ${isActive ? 'background-#eff6ff color-#2563eb' : 'background-transparent color-#475569 hover:background-#f8fafc'}`;
+        
+        btn.innerHTML = `<span class="fontSize-18px">${icon}</span> <span class="flex-1">${label}</span> ${isOnline ? '<span class="width-8px height-8px borderRadius-50% background-#10b981"></span>' : ''}`;
+        
+        btn.onclick = () => {
+            activeMode = mode; activeUser = user;
+            renderChatUI(); // Re-render everything to show selected state
+        };
+        sidebar.appendChild(btn);
+    };
+
+    const renderChatUI = async () => {
+        sidebar.innerHTML = '<h3 class="fontSize-12px fontWeight-bold color-#94a3b8 textTransform-uppercase margin-0">Channels</h3>';
+        
+        renderSidebarBtn('Global Network', '🌍', 'global');
+        renderSidebarBtn('Company Chat', '🏢', 'company');
+        
+        sidebar.insertAdjacentHTML('beforeend', '<h3 class="fontSize-12px fontWeight-bold color-#94a3b8 textTransform-uppercase marginTop-16px marginBottom-0">Direct Messages</h3>');
+        
+        const users = await apiCall('/chat/users');
+        users.forEach(u => {
+            const isOnline = (new Date() - new Date(u.LastActive)) < 15 * 60 * 1000; // Online if active within 15 mins
+            renderSidebarBtn(u.Username, '👤', 'private', u.Username, isOnline);
+        });
+
+        loadMessages();
+    };
+
+    // Chat Area
+    const chatArea = document.createElement('div');
+    chatArea.className = "flex-1 background-#fff border-1px_solid_#e2e8f0 borderRadius-12px display-flex flexDirection-column position-relative overflow-hidden";
+
+    const chatHeader = document.createElement('div');
+    chatHeader.className = "padding-16px borderBottom-1px_solid_#e2e8f0 background-#f8fafc fontWeight-bold color-#1e293b";
+    
+    const messageList = document.createElement('div');
+    messageList.className = "flex-1 padding-20px overflowY-auto display-flex flexDirection-column gap-16px";
+
+    const inputWrap = document.createElement('div');
+    inputWrap.className = "padding-16px borderTop-1px_solid_#e2e8f0 background-#fff display-flex gap-12px";
+    
+    const input = new ECTextbox({placeholder: "Type a message..."});
+    input.element.classList.add('flex-1');
+    const sendBtn = new ECButton("Send", {variant:"filled"}).onClick(sendMessage);
+
+    inputWrap.appendChild(input.element);
+    inputWrap.appendChild(sendBtn.element);
+    
+    chatArea.appendChild(chatHeader);
+    chatArea.appendChild(messageList);
+    chatArea.appendChild(inputWrap);
+
+    async function loadMessages() {
+        chatHeader.innerHTML = activeMode === 'private' ? `Private Chat with ${activeUser}` : 
+                               activeMode === 'global' ? 'Global Network Chat' : 'Company General Chat';
+        
+        messageList.innerHTML = '<div class="color-#94a3b8 fontSize-13px textAlign-center">Loading history...</div>';
+        const msgs = await apiCall(`/chat?mode=${activeMode}${activeUser ? `&user=${activeUser}` : ''}`);
+        
+        messageList.innerHTML = '';
+        if(msgs.length === 0) messageList.innerHTML = '<div class="color-#94a3b8 fontSize-13px textAlign-center marginTop-20px">No messages yet. Start the conversation!</div>';
+
+        msgs.forEach(m => {
+            const isMe = m.Sender === localStorage.getItem('erp_username');
+            const wrap = document.createElement('div');
+            wrap.className = `display-flex ${isMe ? 'justifyContent-flex-end' : 'justifyContent-flex-start'}`;
+            
+            const bubble = document.createElement('div');
+            bubble.className = `padding-10px_14px borderRadius-12px maxWidth-70% fontSize-14px ${isMe ? 'background-#3b82f6 color-#ffffff' : 'background-#f1f5f9 color-#1e293b'}`;
+            bubble.innerHTML = `<div class="fontSize-11px fontWeight-bold marginBottom-4px ${isMe ? 'color-#bfdbfe' : 'color-#64748b'}">${m.Sender}</div>${m.Message}`;
+            
+            wrap.appendChild(bubble);
+            messageList.appendChild(wrap);
+        });
+        messageList.scrollTop = messageList.scrollHeight;
+    }
+
+    async function sendMessage() {
+        const val = input.getValue();
+        if(!val) return;
+        await apiCall('/chat', 'POST', { mode: activeMode, message: val, receiver: activeUser });
+        input.setValue('');
+        loadMessages();
+    }
+
+    input.onEnter(sendMessage);
+
+    chatContainer.appendChild(sidebar);
+    chatContainer.appendChild(chatArea);
+    root.appendChild(chatContainer);
+    
+    await renderChatUI();
+    window.ECStyleSheet.scan();
+    hideLoader();
+}
+
+// ---------------- CALENDAR / SCHEDULES ----------------
 
 async function renderCalendar() {
     showLoader();
@@ -274,12 +376,7 @@ async function renderCalendar() {
     root.appendChild(header);
 
     const schedules = await apiCall('/data/schedules');
-    
-    if (schedules.error) {
-        new ECToast(schedules.error, {type:"error"}).show();
-        hideLoader();
-        return;
-    }
+    if (schedules.error) { new ECToast(schedules.error, {type:"error"}).show(); hideLoader(); return; }
     
     const now = new Date();
     const year = now.getFullYear();
@@ -331,48 +428,6 @@ async function renderCalendar() {
     
     window.ECStyleSheet.scan();
     hideLoader();
-}
-
-function renderChat() {
-    const root = rootArea();
-    root.innerHTML = '';
-    const isGlobal = new ECToggle("Global Network Chat", false);
-    const chatBox = document.createElement('div');
-    chatBox.className = "height-500px overflowY-auto border-1px_solid_#e2e8f0 padding-20px borderRadius-12px background-#fff marginBottom-16px display-flex flexDirection-column gap-16px";
-    
-    const input = new ECTextbox({placeholder: "Broadcast message..."});
-    
-    const loadChats = async () => {
-        chatBox.innerHTML = '';
-        const msgs = await apiCall(`/chat?global=${isGlobal.getValue()}`);
-        msgs.forEach(m => {
-            const isMe = m.Sender === localStorage.getItem('erp_username');
-            const bubbleWrap = document.createElement('div');
-            bubbleWrap.className = `display-flex ${isMe ? 'justifyContent-flex-end' : 'justifyContent-flex-start'}`;
-            
-            const bubble = document.createElement('div');
-            bubble.className = `padding-12px_16px borderRadius-12px maxWidth-70% fontSize-14px ${isMe ? 'background-#3b82f6 color-#ffffff' : 'background-#f1f5f9 color-#1e293b'}`;
-            bubble.innerHTML = `<div class="fontSize-11px fontWeight-bold marginBottom-4px ${isMe ? 'color-#bfdbfe' : 'color-#64748b'}">${m.Sender}</div>${m.Message}`;
-            
-            bubbleWrap.appendChild(bubble);
-            chatBox.appendChild(bubbleWrap);
-        });
-        chatBox.scrollTop = chatBox.scrollHeight;
-    };
-
-    isGlobal.onChange(() => loadChats());
-    input.onEnter(async (val) => {
-        if(!val) return;
-        await apiCall('/chat', 'POST', { message: val, global: isGlobal.getValue() });
-        input.setValue('');
-        loadChats();
-    });
-
-    const card = new ECBasicCard();
-    card.append(isGlobal).append(new ECDivider()).append(chatBox).append(input);
-    root.appendChild(card.element);
-    loadChats();
-    window.ECStyleSheet.scan();
 }
 
 async function renderCRUD(moduleEndpoint, title, columns) {

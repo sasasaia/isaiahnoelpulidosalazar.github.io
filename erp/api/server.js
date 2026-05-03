@@ -27,6 +27,9 @@ async function initErpDB() {
 
             IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='ErpUsers' and xtype='U')
             CREATE TABLE ErpUsers (Id INT IDENTITY(1,1) PRIMARY KEY, Username NVARCHAR(50) UNIQUE, PasswordHash NVARCHAR(255), Role NVARCHAR(20), CompanyId INT NULL FOREIGN KEY REFERENCES ErpCompanies(Id), IsActive BIT DEFAULT 1);
+            
+            -- Alter Users to track online status if it doesn't exist
+            IF COL_LENGTH('ErpUsers', 'LastActive') IS NULL ALTER TABLE ErpUsers ADD LastActive DATETIME DEFAULT GETDATE();
 
             IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='ErpInventory' and xtype='U')
             CREATE TABLE ErpInventory (Id INT IDENTITY(1,1) PRIMARY KEY, CompanyId INT, ItemName NVARCHAR(100), SKU NVARCHAR(50), Quantity INT, Price DECIMAL(18,2));
@@ -45,17 +48,30 @@ async function initErpDB() {
 
             IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='ErpChat' and xtype='U')
             CREATE TABLE ErpChat (Id INT IDENTITY(1,1) PRIMARY KEY, CompanyId INT NULL, Sender NVARCHAR(50), Message NVARCHAR(MAX), IsGlobal BIT, Timestamp DATETIME DEFAULT GETDATE());
+            
+            -- Alter Chat to support Private Messaging
+            IF COL_LENGTH('ErpChat', 'Receiver') IS NULL ALTER TABLE ErpChat ADD Receiver NVARCHAR(50) NULL;
+
+            -- Table for Notifications
+            IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='ErpNotifications' and xtype='U')
+            CREATE TABLE ErpNotifications (Id INT IDENTITY(1,1) PRIMARY KEY, CompanyId INT NULL, Username NVARCHAR(50), Message NVARCHAR(255), IsRead BIT DEFAULT 0, CreatedAt DATETIME DEFAULT GETDATE());
         `);
-        console.log("Line ERP Advanced Tables Initialized.");
+        console.log("Line ERP Advanced Tables + Private Chat Initialized.");
     } catch (err) { console.error("DB Error:", err.message); }
 }
 initErpDB();
 
-const requireAuth = (req, res, next) => {
+const requireAuth = async (req, res, next) => {
     const token = req.headers.authorization?.split(' ')[1];
     if (!token) return res.status(401).json({ error: "Missing token" });
-    try { req.user = jwt.verify(token, process.env.JWT_SECRET || 'secret'); next(); } 
-    catch (err) { res.status(401).json({ error: "Session expired" }); }
+    try { 
+        req.user = jwt.verify(token, process.env.JWT_SECRET || 'secret'); 
+        
+        const pool = await sql.connect(dbConfig);
+        await pool.request().input('u', req.user.username).query("UPDATE ErpUsers SET LastActive = GETDATE() WHERE Username=@u");
+        
+        next(); 
+    } catch (err) { res.status(401).json({ error: "Session expired" }); }
 };
 
 const getContextCompanyId = (req) => {
@@ -96,21 +112,27 @@ app.get('/api/dashboard', requireAuth, async (req, res) => {
     const compId = getContextCompanyId(req);
 
     if (req.user.role === 'SuperAdmin' && !compId) {
-        const c = await pool.request().query("SELECT * FROM ErpCompanies");
+        const c = await pool.request().query("SELECT COUNT(*) as c FROM ErpCompanies");
         const u = await pool.request().query("SELECT COUNT(*) as total FROM ErpUsers");
-        res.json({ type: 'super', companies: c.recordset, totalUsers: u.recordset[0].total });
+        const online = await pool.request().query("SELECT COUNT(*) as c FROM ErpUsers WHERE LastActive > DATEADD(minute, -15, GETDATE())");
+        res.json({ type: 'super', companies: c.recordset[0].c, totalUsers: u.recordset[0].total, online: online.recordset[0].c });
     } else {
         const sales = await pool.request().input('c', compId).query("SELECT SUM(Amount) as Total FROM ErpSales WHERE CompanyId=@c");
-        const inv = await pool.request().input('c', compId).query("SELECT COUNT(*) as Total FROM ErpInventory WHERE CompanyId=@c");
-        const emp = await pool.request().input('c', compId).query("SELECT COUNT(*) as Total FROM ErpEmployees WHERE CompanyId=@c");
-        const tx = await pool.request().input('c', compId).query("SELECT COUNT(*) as Total FROM ErpTransactions WHERE CompanyId=@c");
+        const orders = await pool.request().input('c', compId).query("SELECT COUNT(*) as Total FROM ErpSales WHERE CompanyId=@c");
+        const emp = await pool.request().input('c', compId).query("SELECT COUNT(*) as Total FROM ErpEmployees WHERE CompanyId=@c AND ComplianceStatus='Cleared'");
+        const online = await pool.request().input('c', compId).query("SELECT COUNT(*) as Total FROM ErpUsers WHERE CompanyId=@c AND LastActive > DATEADD(minute, -15, GETDATE())");
+        const notifs = await pool.request().input('u', req.user.username).query("SELECT COUNT(*) as Total FROM ErpNotifications WHERE Username=@u AND IsRead=0");
         
+        const chats = await pool.request().input('u', req.user.username).query("SELECT COUNT(*) as Total FROM ErpChat WHERE Receiver=@u AND Timestamp > DATEADD(day, -1, GETDATE())");
+
         res.json({ 
             type: 'company', 
             sales: sales.recordset[0].Total || 0, 
-            inventoryCount: inv.recordset[0].Total || 0,
-            employeeCount: emp.recordset[0].Total || 0,
-            transactionCount: tx.recordset[0].Total || 0
+            orders: orders.recordset[0].Total || 0,
+            activeEmployees: emp.recordset[0].Total || 0,
+            online: online.recordset[0].Total || 0,
+            notifications: notifs.recordset[0].Total || 0,
+            newChats: chats.recordset[0].Total || 0
         });
     }
 });
@@ -200,25 +222,51 @@ app.post('/api/data/:module', requireAuth, async (req, res) => {
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.get('/api/chat', requireAuth, async (req, res) => {
-    const isGlobal = req.query.global === 'true';
+app.get('/api/chat/users', requireAuth, async (req, res) => {
     const compId = getContextCompanyId(req);
     const pool = await sql.connect(dbConfig);
-    let q = "SELECT TOP 50 Sender, Message, Timestamp FROM ErpChat WHERE IsGlobal=1 ORDER BY Timestamp ASC";
-    if (!isGlobal) {
-        if (compId) q = `SELECT TOP 50 Sender, Message, Timestamp FROM ErpChat WHERE IsGlobal=0 AND CompanyId=${compId} ORDER BY Timestamp ASC`;
-        else if (req.user.role === 'SuperAdmin') q = `SELECT TOP 50 Sender, Message, Timestamp FROM ErpChat WHERE IsGlobal=0 ORDER BY Timestamp ASC`;
+    let q = "SELECT Username, LastActive FROM ErpUsers WHERE Username != @u";
+    if (compId) q += ` AND CompanyId=${compId}`;
+    const r = await pool.request().input('u', req.user.username).query(q);
+    res.json(r.recordset);
+});
+
+app.get('/api/chat', requireAuth, async (req, res) => {
+    const { mode, user } = req.query; // mode: global, company, private
+    const compId = getContextCompanyId(req);
+    const pool = await sql.connect(dbConfig);
+    const reqObj = pool.request();
+    let q = "";
+
+    if (mode === 'global') {
+        q = "SELECT TOP 50 Sender, Message, Timestamp FROM ErpChat WHERE IsGlobal=1 ORDER BY Timestamp ASC";
+    } else if (mode === 'company') {
+        q = `SELECT TOP 50 Sender, Message, Timestamp FROM ErpChat WHERE IsGlobal=0 AND Receiver IS NULL AND CompanyId=${compId || 0} ORDER BY Timestamp ASC`;
+    } else if (mode === 'private') {
+        reqObj.input('me', req.user.username).input('them', user);
+        q = "SELECT TOP 50 Sender, Message, Timestamp FROM ErpChat WHERE (Sender=@me AND Receiver=@them) OR (Sender=@them AND Receiver=@me) ORDER BY Timestamp ASC";
     }
-    const r = await pool.request().query(q);
+    
+    const r = await reqObj.query(q);
     res.json(r.recordset);
 });
 
 app.post('/api/chat', requireAuth, async (req, res) => {
-    const isGlobal = req.body.global === true;
+    const { mode, message, receiver } = req.body;
     const compId = getContextCompanyId(req);
     const pool = await sql.connect(dbConfig);
-    await pool.request().input('c', isGlobal ? null : compId).input('s', req.user.username).input('m', req.body.message).input('g', isGlobal ? 1 : 0)
-        .query("INSERT INTO ErpChat (CompanyId, Sender, Message, IsGlobal) VALUES (@c, @s, @m, @g)");
+    
+    const isGlobal = mode === 'global' ? 1 : 0;
+    const rec = mode === 'private' ? receiver : null;
+    const cId = mode === 'global' ? null : compId;
+
+    await pool.request()
+        .input('c', cId)
+        .input('s', req.user.username)
+        .input('m', message)
+        .input('g', isGlobal)
+        .input('r', rec)
+        .query("INSERT INTO ErpChat (CompanyId, Sender, Message, IsGlobal, Receiver) VALUES (@c, @s, @m, @g, @r)");
     res.json({ success: true });
 });
 
