@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QR Reader & Generator</title>
+    
+    <script src="../js/ECStyleSheet.js"></script>
+    <script src="../js/ECElements.js"></script>
+    
+    <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
+    <script src="https://unpkg.com/html5-qrcode"></script>
+</head>
+<body class="margin-0 background-var(--ec-surface,_#f8f9fa)">
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    const topbar = new ECTopbar("QR Hub").setTheme(ECTheme.Blue);
+    document.body.appendChild(topbar.element);
+
+    const mainContainer = document.createElement("div");
+    mainContainer.className = "padding-80px_20px_40px display-flex flexDirection-column alignItems-center minHeight-100vh boxSizing-border-box";
+    document.body.appendChild(mainContainer);
+
+    const contentWrapper = document.createElement("div");
+    contentWrapper.className = "width-100% maxWidth-600px display-flex flexDirection-column gap-24px";
+    mainContainer.appendChild(contentWrapper);
+
+    const hero = new ECHero({
+        title: "QR Code Hub",
+        subtitle: "Easily generate custom QR codes or scan existing ones using your device camera.",
+        background: "transparent"
+    });
+    hero.element.classList.replace("height-100vh", "padding-20px_0");
+    contentWrapper.appendChild(hero.element);
+
+    const modeRadio = new ECRadio("appMode",[
+        { label: "Generate QR", value: "generate", checked: true },
+        { label: "Scan QR", value: "scan" }
+    ]);
+    modeRadio.element.classList.replace("flexDirection-column", "flexDirection-row");
+    modeRadio.element.classList.add("justifyContent-center", "gap-24px", "marginBottom-8px");
+    contentWrapper.appendChild(modeRadio.element);
+
+    const genCard = new ECBasicCard();
+    genCard.element.classList.add("display-flex", "flexDirection-column", "gap-20px");
+    
+    const scanCard = new ECBasicCard();
+    scanCard.element.classList.add("display-none", "flexDirection-column", "gap-20px");
+
+    contentWrapper.appendChild(genCard.element);
+    contentWrapper.appendChild(scanCard.element);
+
+    const genInput = new ECTextbox({ 
+        label: "Enter Text or URL", 
+        placeholder: "e.g., https://example.com" 
+    });
+    genCard.append(genInput.element);
+
+    const genBtnRow = document.createElement("div");
+    genBtnRow.className = "display-flex gap-12px";
+
+    const genBtn = new ECButton("Generate QR").setTheme(ECTheme.Blue);
+    const downloadBtn = new ECButton("Download Image", { variant: "outline" }).setTheme(ECTheme.Blue);
+    downloadBtn.disable(); 
+
+    genBtnRow.appendChild(genBtn.element);
+    genBtnRow.appendChild(downloadBtn.element);
+    genCard.append(genBtnRow);
+
+    const qrCanvasContainer = document.createElement("div");
+    qrCanvasContainer.className = "display-flex justifyContent-center padding-20px background-var(--ec-bg,_#fff) border-1px_solid_var(--ec-border,_#dee2e6) borderRadius-8px";
+    
+    const canvas = document.createElement("canvas");
+    qrCanvasContainer.appendChild(canvas);
+    genCard.append(qrCanvasContainer);
+
+    genBtn.onClick(() => {
+        const text = genInput.getValue().trim();
+        if (!text) {
+            new ECToast("Please enter text or a URL.", { type: "warning" }).show();
+            return;
+        }
+        QRCode.toCanvas(canvas, text, { width: 220, margin: 2 }, (error) => {
+            if (error) {
+                new ECToast("Failed to generate QR code.", { type: "error" }).show();
+            } else {
+                new ECToast("QR Code Generated!", { type: "success" }).show();
+                downloadBtn.enable();
+            }
+        });
+    });
+
+    downloadBtn.onClick(() => {
+        const url = canvas.toDataURL("image/png");
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "qrcode.png";
+        a.click();
+    });
+
+    let html5QrCode = null;
+
+    const readerWrapper = document.createElement("div");
+    readerWrapper.className = "width-100% overflow-hidden borderRadius-8px border-1px_solid_var(--ec-border,_#dee2e6) background-#000 display-flex alignItems-center justifyContent-center minHeight-250px";
+    
+    const readerDiv = document.createElement("div");
+    readerDiv.id = "qr-reader";
+    readerDiv.className = "width-100%";
+    readerWrapper.appendChild(readerDiv);
+    scanCard.append(readerWrapper);
+
+    const scanBtnRow = document.createElement("div");
+    scanBtnRow.className = "display-flex gap-12px flexWrap-wrap";
+    
+    const startScanBtn = new ECButton("Start Camera").setTheme(ECTheme.Green);
+    const stopScanBtn = new ECButton("Stop Camera", { variant: "outline" }).setTheme(ECTheme.Red);
+    stopScanBtn.disable();
+
+    scanBtnRow.appendChild(startScanBtn.element);
+    scanBtnRow.appendChild(stopScanBtn.element);
+    scanCard.append(scanBtnRow);
+
+    scanCard.append(new ECDivider({ label: "OR" }).element);
+
+    const fileUpload = new ECFileUpload({
+        title: "Upload QR Image",
+        subtitle: "Browse or drag & drop a saved QR code image",
+        accept: "image/*"
+    });
+    scanCard.append(fileUpload.element);
+
+    const scanResult = new ECTextbox({ label: "Scanned Result", placeholder: "Result will appear here..." });
+    const copyBtn = new ECButton("Copy").setTheme(ECTheme.Blue);
+    
+    copyBtn.onClick(() => {
+        const text = scanResult.getValue();
+        if(text) {
+            navigator.clipboard.writeText(text).then(() => {
+                new ECToast("Copied to clipboard!", { type: "success" }).show();
+            });
+        }
+    });
+
+    const resultRow = document.createElement("div");
+    resultRow.className = "display-flex gap-12px alignItems-flex-end marginTop-12px";
+    scanResult.element.classList.add("flex-1");
+    resultRow.appendChild(scanResult.element);
+    resultRow.appendChild(copyBtn.element);
+    scanCard.append(resultRow);
+
+    startScanBtn.onClick(() => {
+        if (!html5QrCode) {
+            html5QrCode = new Html5Qrcode("qr-reader");
+        }
+        html5QrCode.start(
+            { facingMode: "environment" },
+            { fps: 10, qrbox: { width: 250, height: 250 } },
+            (decodedText) => {
+                scanResult.setValue(decodedText);
+                
+                html5QrCode.stop().then(() => {
+                    startScanBtn.enable();
+                    stopScanBtn.disable();
+                });
+                new ECToast("QR Code Scanned!", { type: "success" }).show();
+            },
+            (errorMessage) => { }
+        ).then(() => {
+            startScanBtn.disable();
+            stopScanBtn.enable();
+        }).catch(err => {
+            new ECToast("Could not start camera. Check permissions.", { type: "error" }).show();
+        });
+    });
+
+    stopScanBtn.onClick(() => {
+        if (html5QrCode) {
+            html5QrCode.stop().then(() => {
+                startScanBtn.enable();
+                stopScanBtn.disable();
+                new ECToast("Camera stopped.", { type: "info" }).show();
+            });
+        }
+    });
+
+    fileUpload.onChange((files) => {
+        if (files.length > 0) {
+            if (!html5QrCode) html5QrCode = new Html5Qrcode("qr-reader");
+            
+            html5QrCode.scanFile(files[0], true)
+                .then(decodedText => {
+                    scanResult.setValue(decodedText);
+                    new ECToast("Image scanned successfully!", { type: "success" }).show();
+                })
+                .catch(err => {
+                    new ECToast("No QR code found in the image.", { type: "error" }).show();
+                });
+        }
+    });
+
+    modeRadio.onChange((val) => {
+        if (val === "generate") {
+            genCard.element.classList.replace("display-none", "display-flex");
+            scanCard.element.classList.replace("display-flex", "display-none");
+            
+            if (html5QrCode && html5QrCode.isScanning) {
+                html5QrCode.stop().then(() => {
+                    startScanBtn.enable();
+                    stopScanBtn.disable();
+                }).catch(()=>{});
+            }
+        } else {
+            genCard.element.classList.replace("display-flex", "display-none");
+            scanCard.element.classList.replace("display-none", "display-flex");
+        }
+    });
+});
+</script>
+
+</body>
+</html>
