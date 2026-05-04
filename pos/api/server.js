@@ -201,4 +201,4 @@ app.post('/api/sales', requireAuth, async (req, res) => {
     }
 });
 
-app.listen(process.env.PORT || 3001, () => console.log(`Line POS API running on port ${process.env.PORT || 3001}`));
+app.listen(process.env.PORT || 3002, () => console.log(`Line POS API running on port ${process.env.PORT || 3002}`));
