@@ -1,0 +1,12 @@
+:root {
+  --bg: #ffffff;
+  --surface: #f6f8fa;
+  --border: #d0d7de;
+  --text: #1f2328;
+  --muted: #656d76;
+  --accent: #0969da;
+  --ec-bg: #f6f8fa;
+  --ec-border: #d0d7de;
+}
+*, *::before, *::after { margin: 0; padding: 0; }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
