@@ -3,7 +3,7 @@ name: Build Python Package
 on:
   push:
     paths:
-      - 'py/**'
+      - 'pypi/**'
   workflow_dispatch:
 
 permissions:
@@ -25,14 +25,14 @@ jobs:
         id: metadata
         run: |
           # 1. Get Version from pyproject.toml
-          VERSION=$(grep -m 1 "version =" py/pyproject.toml | cut -d '"' -f 2)
+          VERSION=$(grep -m 1 "version =" pypi/pyproject.toml | cut -d '"' -f 2)
           
           # 2. Get Changes from __init__.py (looks for everything after '# changes:')
           # This script finds the package folder and reads the __init__.py
           CHANGES=$(python3 -c "
           import re
           from pathlib import Path
-          init_content = Path('py/pythonbundle/__init__.py').read_text()
+          init_content = Path('pypi/pythonbundle/__init__.py').read_text()
           match = re.search(r'# changes:\s*\n((?:\s*#\s*-.*\n?)+)', init_content, re.IGNORECASE)
           if match:
               # Clean up the # and spaces
@@ -52,7 +52,7 @@ jobs:
           echo "EOF" >> $GITHUB_ENV
 
       - name: Build package
-        working-directory: ./py
+        working-directory: ./pypi
         run: |
           pip install build
           python -m build
@@ -78,7 +78,7 @@ jobs:
             Auto-generated release.
 
             Version: v${{ env.VERSION }}
-            Built from latest commit in py/.
+            Built from latest commit in pypi/.
 
             Changes:
             ${{ env.CHANGES }}
@@ -91,4 +91,4 @@ jobs:
         if: steps.tag_check.outputs.exists == 'false'
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
-          packages-dir: py/dist/
+          packages-dir: pypi/dist/
