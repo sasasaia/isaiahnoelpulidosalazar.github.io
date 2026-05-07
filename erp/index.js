@@ -95,12 +95,12 @@ async function setupWorkspace() {
     const addNavItem = (icon, label, action) => {
         const btn = document.createElement('button');
         btn.className = "width-100% display-flex alignItems-center gap-12px padding-10px_16px background-transparent border-none color-#94a3b8 cursor-pointer borderRadius-8px transition-0.2s hover:background-#1e293b hover:color-#ffffff textAlign-left fontSize-14px fontWeight-500";
-        btn.innerHTML = `<span class="fontSize-18px">${icon}</span> ${label}`;
+        btn.innerHTML = `<span class="material-symbols-rounded">${icon}</span> ${label}`;
         btn.onclick = () => { document.getElementById('topbar-title').textContent = label; action(); };
         nav.appendChild(btn);
     };
 
-    addNavItem('📊', 'Dashboard', renderDashboard);
+    addNavItem('dashboard', 'Dashboard', renderDashboard);
     
     if (role === 'SuperAdmin') {
         addNavItem('🏢', 'Tenants & Companies', renderCompaniesView);
