@@ -102,7 +102,7 @@ function setupWorkspace() {
     };
 
     if (auth.role === 'SuperAdmin') {
-        addNavItem('🏢', 'Store Instances', renderSuperAdmin);
+        addNavItem('store', 'Store Instances', renderSuperAdmin);
         document.getElementById('topbar-title').textContent = 'Store Instances';
         renderSuperAdmin();
     } else if (auth.role === 'StoreAdmin') {
