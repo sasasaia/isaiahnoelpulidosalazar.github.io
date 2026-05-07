@@ -44,6 +44,17 @@
 <div id="modal-mount"></div>
 
 <div class="demo-section">
+  <h2 class="fontSize-22px fontWeight-600 color-#1a1a2e margin-0">How to use?</h2>
+  <p class="fontSize-15px color-#555 marginTop-8px">Adding and using ECStyleSheet and ECElements are as easy as importing them like normal JavaScript modules inside the head tag.</p>
+  <pre><code>&lt;head&gt;
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="cm">/* other elements here */</span>
+&nbsp;&nbsp;&nbsp;&nbsp;&lt;script src=<span class="st">"https://isaiahnoelpulidosalazar.github.io/js/ECStyleSheet.js"</span>&gt;&lt;/script&gt;
+&nbsp;&nbsp;&nbsp;&nbsp;&lt;script src=<span class="st">"https://isaiahnoelpulidosalazar.github.io/js/ECElements.js"</span>&gt;&lt;/script&gt;
+&lt;/head&gt;
+</code></pre>
+</div>
+
+<div class="demo-section">
   <h2 class="fontSize-22px fontWeight-600 color-#1a1a2e margin-0">1 · ECStyleSheet</h2>
   <p class="fontSize-15px color-#555 marginTop-8px">Dynamic CSS from class names — no build step, no config.</p>
   <div class="demo-row">
@@ -53,6 +64,7 @@
     <span class="padding-12px backgroundColor-#fff3e0 color-#e37400 borderRadius-8px fontSize-14px fontWeight-500 hover:opacity-0.7">hover:opacity-0.7</span>
   </div>
   <pre><code><span class="cm">/* property-value | hover:p-v | mobile:p-v | spaces->underscores */</span>
+&lt;script src=<span class="st">"https://isaiahnoelpulidosalazar.github.io/ECStyleSheet.js"</span>&gt;&lt;/script&gt;
 &lt;span class=<span class="st">"padding-12px color-blue fontSize-16px"</span>&gt;Hello&lt;/span&gt;
 &lt;span class=<span class="st">"hover:color-red"</span>&gt;Hover me&lt;/span&gt;
 <span class="nm">ECStyleSheet</span>.<span class="fn">process</span>(<span class="st">"paddingTop-16px"</span>);</code></pre>
