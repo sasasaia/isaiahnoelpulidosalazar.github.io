@@ -103,32 +103,32 @@ async function setupWorkspace() {
     addNavItem('dashboard', 'Dashboard', renderDashboard);
     
     if (role === 'SuperAdmin') {
-        addNavItem('🏢', 'Tenants & Companies', renderCompaniesView);
+        addNavItem('apartment', 'Tenants & Companies', renderCompaniesView);
         await setupContextSwitcher();
     } else if (role === 'CompanyAdmin') {
-        addNavItem('👥', 'Manage Employees', () => showAddUserModal());
+        addNavItem('group', 'Manage Employees', () => showAddUserModal());
     }
 
-    addNavItem('💬', 'Communications', renderChat);
-    addNavItem('📦', 'Inventory & Logistics', () => renderCRUD('inventory', 'Inventory',[
+    addNavItem('chat', 'Communications', renderChat);
+    addNavItem('package_2', 'Inventory & Logistics', () => renderCRUD('inventory', 'Inventory',[
         {key:'ItemName', label:'Item Name', type:'text'}, 
         {key:'SKU', label:'SKU', type:'text'}, 
         {key:'Quantity', label:'Quantity', type:'text'}, 
         {key:'Price', label:'Unit Price', type:'text'}
     ]));
-    addNavItem('📈', 'Sales Orders', () => renderCRUD('sales', 'Sales Orders',[
+    addNavItem('chart_data', 'Sales Orders', () => renderCRUD('sales', 'Sales Orders',[
         {key:'Customer', label:'Customer Name', type:'text'}, 
         {key:'Amount', label:'Amount', type:'text'}, 
         {key:'Status', label:'Status', type:'dropdown', options:[{label:'Pending', value:'Pending'}, {label:'Paid', value:'Paid'}, {label:'Shipped', value:'Shipped'}]}
     ]));
-    addNavItem('👨‍💼', 'HR Roster', () => renderCRUD('employees', 'Employee Database',[
+    addNavItem('person', 'HR Roster', () => renderCRUD('employees', 'Employee Database',[
         {key:'EmployeeName', label:'Name', type:'text'}, 
         {key:'Position', label:'Position', type:'text'}, 
         {key:'ComplianceStatus', label:'Compliance', type:'dropdown', options:[{label:'Cleared', value:'Cleared'}, {label:'Pending', value:'Pending'}]}, 
         {key:'Salary', label:'Salary', type:'text'}
     ]));
-    addNavItem('📅', 'Schedule Tracker', renderCalendar);
-    addNavItem('💰', 'Transactions', () => renderCRUD('finance', 'Financial Ledger',[
+    addNavItem('calendar_month', 'Schedule Tracker', renderCalendar);
+    addNavItem('attach_money', 'Transactions', () => renderCRUD('finance', 'Financial Ledger',[
         {key:'Type', label:'Type', type:'dropdown', options:[{label:'Income', value:'Income'}, {label:'Expense', value:'Expense'}, {label:'Payroll', value:'Payroll'}]}, 
         {key:'Description', label:'Description', type:'text'}, 
         {key:'Amount', label:'Amount', type:'text'}
