@@ -1,4 +1,3 @@
-/* Builder interactions & pseudo-states */
     #canvas.drop-zone { min-height: 100%; }
     .drop-zone { transition: background-color 0.2s, border-color 0.2s; }
     
@@ -44,7 +43,6 @@
     }
     .control-btn:hover { background: rgba(255,255,255,0.2); }
 
-    /* Textarea for properties */
     .prop-textarea {
       width: 100%; padding: 8px; border: 1px solid #ced4da; border-radius: 4px;
       font-size: 13px; box-sizing: border-box; background: #fff; resize: vertical;
