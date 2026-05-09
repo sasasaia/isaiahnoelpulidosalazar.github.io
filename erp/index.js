@@ -222,8 +222,6 @@ async function renderCompaniesView() {
     hideLoader();
 }
 
-// ---------------- COMMUNICATIONS / CHAT ----------------
-
 async function renderChat() {
     showLoader();
     const root = rootArea();
@@ -232,11 +230,9 @@ async function renderChat() {
     let activeMode = 'company';
     let activeUser = null;
 
-    // Outer layout container
     const chatContainer = document.createElement('div');
     chatContainer.className = "display-flex gap-20px height-calc(100vh_-_120px) width-100%";
 
-    // Sidebar
     const sidebar = document.createElement('div');
     sidebar.className = "width-260px background-#fff border-1px_solid_#e2e8f0 borderRadius-12px padding-16px display-flex flexDirection-column gap-16px overflowY-auto";
     
@@ -249,7 +245,7 @@ async function renderChat() {
         
         btn.onclick = () => {
             activeMode = mode; activeUser = user;
-            renderChatUI(); // Re-render everything to show selected state
+            renderChatUI();
         };
         sidebar.appendChild(btn);
     };
@@ -271,7 +267,6 @@ async function renderChat() {
         loadMessages();
     };
 
-    // Chat Area
     const chatArea = document.createElement('div');
     chatArea.className = "flex-1 background-#fff border-1px_solid_#e2e8f0 borderRadius-12px display-flex flexDirection-column position-relative overflow-hidden";
 
@@ -338,8 +333,6 @@ async function renderChat() {
     window.ECStyleSheet.scan();
     hideLoader();
 }
-
-// ---------------- CALENDAR / SCHEDULES ----------------
 
 async function renderCalendar() {
     showLoader();
