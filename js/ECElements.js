@@ -1884,9 +1884,15 @@
     var kb = (file.size / 1024).toFixed(1);
     name.textContent = file.name + " (" + kb + " KB)";
 
-    var removeBtn = document.createElement("button");
-    removeBtn.className = "background-none border-none color-var(--ec-text-muted,_#6c757d) cursor-pointer fontSize-16px lineHeight-1 padding-0_2px hover:color-#c62828";
-    removeBtn.textContent = "×";
+    var removeBtn = document.createElement("a");
+    removeBtn.className = "background-none border-none display-flex alignItems-center justifyContent-center color-var(--ec-text-muted,_#6c757d) cursor-pointer fontSize-16px lineHeight-1 height-16px width-16px";
+    removeBtn.innerHTML = `<svg class="ecfileupload_close_icon" xmlns="http://www.w3.org/2000/svg" height="12px" viewBox="0 -960 960 960" width="12px" fill="#6c757d"><path d="M480-424 284-228q-11 11-28 11t-28-11q-11-11-11-28t11-28l196-196-196-196q-11-11-11-28t11-28q11-11 28-11t28 11l196 196 196-196q11-11 28-11t28 11q11 11 11 28t-11 28L536-480l196 196q11 11 11 28t-11 28q-11 11-28 11t-28-11L480-424Z"/></svg>`;
+    removeBtn.addEventListener("mouseenter", function () {
+      document.querySelector(".ecfileupload_close_icon").setAttribute("fill", "#c62828");
+    });
+    removeBtn.addEventListener("mouseleave", function () {
+      document.querySelector(".ecfileupload_close_icon").setAttribute("fill", "#6c757d");
+    });
     removeBtn.addEventListener("click", function (e) {
       e.stopPropagation();
       self._files = self._files.filter(function (f) { return f !== file; });
